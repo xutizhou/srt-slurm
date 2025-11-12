@@ -16,6 +16,7 @@ test:
 setup-configs:
 	@echo "📦 Setting up configs directory..."
 	@mkdir -p configs
+	@cp deepep_config.json configs/
 	@ARCH=$$(uname -m); \
 	case "$$ARCH" in \
 		x86_64)  ARCH_SHORT="amd64" ;; \
