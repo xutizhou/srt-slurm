@@ -29,3 +29,5 @@ uv.lock
 .DS_Store
 Thumbs.db
 
+configs/
+.ruff_cache/
