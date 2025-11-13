@@ -81,7 +81,6 @@ if [ "$mode" = "prefill" ]; then
 
     # set your own cache variables here
     export TORCH_DISTRIBUTED_DEFAULT_TIMEOUT=1800
-    export SGLANG_DG_CACHE_DIR="/configs/deepgemm_cache"
 
     DYN_SKIP_SGLANG_LOG_FORMATTING=1 \
     SGLANG_NVFP4_CKPT_FP8_GEMM_IN_ATTN=1 \
@@ -156,7 +155,6 @@ elif [ "$mode" = "decode" ]; then
 
     # set your own cache variables here
     export TORCH_DISTRIBUTED_DEFAULT_TIMEOUT=1800
-    export SGLANG_DG_CACHE_DIR="/configs/deepgemm_cache"
 
     # we have to install pre-release cutedsl for a integer overflow fix
     python3 -m pip install --no-cache-dir --upgrade --pre nvidia-cutlass-dsl
