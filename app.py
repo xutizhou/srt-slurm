@@ -100,10 +100,15 @@ def _run_to_dict(run) -> dict:
         "path": run.metadata.path,
         "run_date": formatted_date,
         "container": run.metadata.container,
+        # For display: show workers as DP
         "prefill_dp": run.metadata.prefill_workers,
         "decode_dp": run.metadata.decode_workers,
         "prefill_tp": run.metadata.gpus_per_node,
         "decode_tp": run.metadata.gpus_per_node,
+        # For total GPU calculation: pass through nodes
+        "prefill_nodes": run.metadata.prefill_nodes,
+        "decode_nodes": run.metadata.decode_nodes,
+        "gpus_per_node": run.metadata.gpus_per_node,
         "frontends": run.metadata.num_additional_frontends,
         "gpu_type": run.metadata.gpu_type,
         "profiler_type": run.profiler.profiler_type,
@@ -211,12 +216,19 @@ def _runs_to_dataframe(run_dicts: list[dict]):
     rows = []
 
     for run in run_dicts:
-        # Calculate total GPUs
+        # Calculate total GPUs from nodes (not workers)
+        # Total GPUs = (prefill_nodes + decode_nodes) * gpus_per_node
         total_gpus = 0
-        if "prefill_tp" in run and "prefill_dp" in run:
-            total_gpus += run["prefill_tp"] * run["prefill_dp"]
-        if "decode_tp" in run and "decode_dp" in run:
-            total_gpus += run["decode_tp"] * run["decode_dp"]
+        if "prefill_nodes" in run and "decode_nodes" in run and "gpus_per_node" in run:
+            total_gpus = (run["prefill_nodes"] + run["decode_nodes"]) * run["gpus_per_node"]
+        
+        # Fallback to old calculation if nodes not available
+        if total_gpus == 0:
+            if "prefill_tp" in run and "prefill_dp" in run:
+                total_gpus += run["prefill_tp"] * run["prefill_dp"]
+            if "decode_tp" in run and "decode_dp" in run:
+                total_gpus += run["decode_tp"] * run["decode_dp"]
+        
         total_gpus = total_gpus if total_gpus > 0 else 1
 
         run_id = run.get("slurm_job_id", "Unknown")
