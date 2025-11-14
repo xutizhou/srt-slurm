@@ -82,12 +82,17 @@ export AWS_SECRET_ACCESS_KEY="your-secret-key"
 **On Clusters (Push results):**
 
 ```bash
-# Push all runs from a logs directory
+# Push all runs (defaults to logs/ directory, skips existing)
+./push_after_benchmark.sh
+
+# Or specify a different logs directory
 ./push_after_benchmark.sh --log-dir /mnt/lustre01/users-public/slurm-shared/joblogs
 
-# Push a single run
+# Or push a single run
 ./push_after_benchmark.sh 3667_1P_1D_20251110_192145
 ```
+
+The script automatically skips runs that already exist in cloud storage.
 
 **Locally (Pull results):**
 

@@ -3,10 +3,12 @@
 # Push benchmark results to cloud storage
 #
 # Usage:
-#   ./push_after_benchmark.sh --log-dir <logs_directory>
-#   ./push_after_benchmark.sh <single_run_directory>
+#   ./push_after_benchmark.sh                  # Defaults to logs/ directory
+#   ./push_after_benchmark.sh --log-dir <dir>  # Specify logs directory
+#   ./push_after_benchmark.sh <run_dir>        # Push single run
 #
 # Examples:
+#   ./push_after_benchmark.sh
 #   ./push_after_benchmark.sh --log-dir /mnt/lustre01/users-public/slurm-shared/joblogs
 #   ./push_after_benchmark.sh 3667_1P_1D_20251110_192145
 #
@@ -31,14 +33,20 @@ fi
 
 # Parse arguments
 if [ $# -eq 0 ]; then
-    echo "Error: No arguments provided"
-    echo "Usage: $0 --log-dir <logs_directory>"
-    echo "   or: $0 <single_run_directory>"
-    exit 1
-fi
+    # Default: push all from logs/ directory
+    LOGS_DIR="$SCRIPT_DIR/logs"
+    
+    if [ ! -d "$LOGS_DIR" ]; then
+        echo "Error: Default logs directory '$LOGS_DIR' does not exist"
+        echo "Usage: $0 --log-dir <logs_directory>"
+        exit 1
+    fi
+    
+    echo "Pushing all runs from $LOGS_DIR to cloud storage (skipping existing)..."
+    python3 "$SYNC_SCRIPT" --logs-dir "$LOGS_DIR" push-all
 
-if [ "$1" = "--log-dir" ]; then
-    # Push all runs from logs directory
+elif [ "$1" = "--log-dir" ]; then
+    # Push all runs from specified logs directory
     if [ $# -lt 2 ]; then
         echo "Error: --log-dir requires a directory path"
         exit 1
@@ -51,7 +59,7 @@ if [ "$1" = "--log-dir" ]; then
         exit 1
     fi
     
-    echo "Pushing all runs from $LOGS_DIR to cloud storage..."
+    echo "Pushing all runs from $LOGS_DIR to cloud storage (skipping existing)..."
     python3 "$SYNC_SCRIPT" --logs-dir "$LOGS_DIR" push-all
     
 else

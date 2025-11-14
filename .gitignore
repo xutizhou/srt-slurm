@@ -32,5 +32,12 @@ Thumbs.db
 # Cloud config (contains credentials)
 cloud_config.toml
 
-configs/
+# Configs - ignore downloaded files but keep deepep_config.json
+configs/nats-server
+configs/etcd
+configs/etcdctl
+configs/*.whl
+configs/*.deb
+configs/*.tar.gz
+
 .ruff_cache/

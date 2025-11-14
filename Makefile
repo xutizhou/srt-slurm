@@ -14,9 +14,8 @@ test:
 	cd /Users/idhanani/Desktop/benchmarks/infbench && uv run python -m tests.test_basic && uv run python -m tests.test_aggregations
 
 setup:
-	@echo "📦 Setting up configs directory..."
-	@mkdir -p configs
-	@cp deepep_config.json configs/
+	@echo "📦 Setting up configs and logs directories..."
+	@mkdir -p logs
 	@ARCH=$$(uname -m); \
 	case "$$ARCH" in \
 		x86_64)  ARCH_SHORT="amd64" ;; \
