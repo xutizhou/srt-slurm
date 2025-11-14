@@ -118,14 +118,15 @@ def aggregate_all_nodes(node_metrics_list: list[dict]) -> list[dict]:
 
         aggregated_node = {
             "node_info": {
-                "node": f"{run_id}_ALL_NODES",
+                "node": f"ALL",
                 "worker_type": worker_type,
-                "worker_id": f"avg_{node_count}_nodes",
+                "worker_id": f"{node_count}nodes",
             },
             "prefill_batches": averaged_batches,
             "memory_snapshots": [],
             "config": nodes[0].get("config", {}),
             "run_id": run_id,
+            "run_metadata": nodes[0].get("run_metadata", {}),  # Preserve metadata
         }
 
         aggregated_nodes.append(aggregated_node)
@@ -212,14 +213,15 @@ def group_nodes_by_dp(node_metrics_list: list[dict]) -> list[dict]:
 
         grouped_node = {
             "node_info": {
-                "node": f"{run_id}_DP{dp_idx}",
+                "node": f"DP{dp_idx}",
                 "worker_type": worker_type,
-                "worker_id": f"avg_{tp_count}_workers",
+                "worker_id": f"{tp_count}workers",
             },
             "prefill_batches": averaged_batches,
             "memory_snapshots": [],
             "config": nodes[0]["config"],
             "run_id": run_id,
+            "run_metadata": nodes[0].get("run_metadata", {}),  # Preserve metadata
         }
 
         grouped_nodes.append(grouped_node)
@@ -656,7 +658,13 @@ def create_pareto_graph(
     # Now add the actual data points (so they appear on top of frontier)
     colors = px.colors.qualitative.Set1
     for idx, run_id in enumerate(selected_runs):
-        run_data = df[df["Run ID"] == run_id]
+        run_data = df[df["Run ID"] == run_id].copy()
+        
+        # Filter out rows where y_metric is "N/A" (can't plot these)
+        run_data = run_data[run_data[y_metric] != "N/A"]
+        
+        if run_data.empty:
+            continue  # Skip this run if no valid data
 
         # Choose which throughput to show based on y_metric
         if y_metric == "Total TPS/GPU":
@@ -673,6 +681,12 @@ def create_pareto_graph(
             job_num = run_id.split("_")[0] if "_" in run_id else run_id
             legend_name = f"Job {job_num}"
 
+        # Helper function to format values that might be NaN or "N/A"
+        def format_value(val):
+            if val == "N/A" or val is None or (isinstance(val, float) and pd.isna(val)):
+                return "N/A"
+            return f"{val:.2f}"
+        
         fig.add_trace(
             go.Scatter(
                 x=run_data["Output TPS/User"],
@@ -684,11 +698,11 @@ def create_pareto_graph(
                 text=[
                     f"Run: {row['Run ID']}<br>"
                     f"Concurrency: {row['Concurrency']}<br>"
-                    f"Output TPS/User: {row['Output TPS/User']:.2f}<br>"
-                    f"{y_metric}: {row[y_metric]:.2f}<br>"
-                    f"{tps_label}: {row[tps_column]:.2f}<br>"
-                    f"Mean TTFT: {row['Mean TTFT (ms)']:.2f} ms<br>"
-                    f"Mean TPOT: {row['Mean TPOT (ms)']:.2f} ms"
+                    f"Output TPS/User: {format_value(row['Output TPS/User'])}<br>"
+                    f"{y_metric}: {format_value(row[y_metric])}<br>"
+                    f"{tps_label}: {format_value(row[tps_column])}<br>"
+                    f"Mean TTFT: {format_value(row['Mean TTFT (ms)'])} ms<br>"
+                    f"Mean TPOT: {format_value(row['Mean TPOT (ms)'])} ms"
                     for _, row in run_data.iterrows()
                 ],
                 hoverinfo="text",

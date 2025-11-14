@@ -638,37 +638,31 @@ class NodeAnalyzer:
 def get_node_label(node_data: dict) -> str:
     """Generate a display label for a node with its configuration.
 
-    Example: "[3320] cn01-prefill-w0 (DP0-3, TP8, EP8)"
+    Example: "3320 | 6P1D | 24/32 | cn01-p-w0"
     """
     node_info = node_data["node_info"]
-    config = node_data["config"]
-    run_id = node_data.get("run_id", "")
+    run_metadata = node_data.get("run_metadata", {})
 
-    node_name = node_info["node"].replace("watchtower-navy-", "").replace("watchtower-aqua-", "")
-    worker = f"{node_info['worker_type']}-{node_info['worker_id']}"
+    # Clean node name
+    node_name = node_info["node"].replace("watchtower-navy-", "").replace("watchtower-aqua-", "").replace("inkwell-copper-", "")
+    worker_type = node_info['worker_type'][0].lower()  # 'p' for prefill, 'd' for decode
+    worker_id = node_info['worker_id']
+    node_short = f"{node_name}-{worker_type}-w{worker_id}"
 
-    # Get DP range if we have batch data
-    dp_indices = set()
-    for batch in node_data.get("prefill_batches", []):
-        if "dp" in batch:
-            dp_indices.add(batch["dp"])
-
-    if dp_indices:
-        dp_min, dp_max = min(dp_indices), max(dp_indices)
-        if dp_min == dp_max:
-            dp_str = f"DP{dp_min}"
-        else:
-            dp_str = f"DP{dp_min}-{dp_max}"
+    # If we have run metadata, use it for context
+    if run_metadata:
+        job_id = run_metadata.get("job_id", "")
+        prefill_workers = run_metadata.get("prefill_workers", 0)
+        decode_workers = run_metadata.get("decode_workers", 0)
+        gpus_per_node = run_metadata.get("gpus_per_node", 0)
+        prefill_nodes = run_metadata.get("prefill_nodes", 0)
+        decode_nodes = run_metadata.get("decode_nodes", 0)
+        
+        prefill_gpus = prefill_nodes * gpus_per_node
+        decode_gpus = decode_nodes * gpus_per_node
+        
+        # Format: id | xPyD | prefill_gpus/decode_gpus | node
+        return f"{job_id} | {prefill_workers}P{decode_workers}D | {prefill_gpus}/{decode_gpus} | {node_short}"
     else:
-        dp_str = "DP?"
-
-    tp_str = f"TP{config.get('tp_size', '?')}"
-    ep_str = f"EP{config.get('ep_size', '?')}"
-
-    # Include run_id prefix if available (for multi-run comparisons)
-    if run_id:
-        # Extract just the job number from directory name like "3320_1P_4D_20251104_231843"
-        run_prefix = run_id.split("_")[0] if "_" in run_id else run_id
-        return f"[{run_prefix}] {node_name}-{worker} ({dp_str}, {tp_str}, {ep_str})"
-    else:
-        return f"{node_name}-{worker} ({dp_str}, {tp_str}, {ep_str})"
+        # Fallback for old code without metadata
+        return node_short

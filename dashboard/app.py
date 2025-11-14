@@ -18,8 +18,8 @@ from dashboard import (
     pareto_tab,
     latency_tab,
     node_metrics_tab,
+    rate_match_tab,
     config_tab,
-    comparison_tab,
 )
 from srtslurm import RunLoader
 
@@ -206,9 +206,23 @@ def render_sidebar(logs_dir, runs):
     run_legend_labels = {}
     for run in filtered_runs:
         run_id = f"{run.job_id}_{run.metadata.prefill_workers}P_{run.metadata.decode_workers}D_{run.metadata.run_date}"
-        topology = f"{run.metadata.prefill_workers}P/{run.metadata.decode_workers}D"
-        gpu_suffix = f" [{run.metadata.gpu_type}]" if run.metadata.gpu_type else ""
-        run_legend_labels[run_id] = f"Job {run.job_id} | {topology} | {run.profiler.isl}/{run.profiler.osl}{gpu_suffix}"
+        
+        # Calculate from metadata (straight from {jobid}.json)
+        prefill_gpus = run.metadata.prefill_nodes * run.metadata.gpus_per_node
+        decode_gpus = run.metadata.decode_nodes * run.metadata.gpus_per_node
+        
+        # Format: id | xPyD | numgpusP/numgpusD | isl/osl | gputype
+        label = (
+            f"{run.job_id} | "
+            f"{run.metadata.prefill_workers}P{run.metadata.decode_workers}D | "
+            f"{prefill_gpus}/{decode_gpus} | "
+            f"{run.profiler.isl}/{run.profiler.osl}"
+        )
+        
+        if run.metadata.gpu_type:
+            label += f" | {run.metadata.gpu_type}"
+        
+        run_legend_labels[run_id] = label
     
     # Get dataframe
     loader = RunLoader(logs_dir)
@@ -353,8 +367,8 @@ def main():
         "📈 Pareto Graph",
         "⏱️ Latency Analysis",
         "🖥️ Node Metrics",
+        "⚖️ Rate Match",
         "⚙️ Configuration",
-        "🔬 Run Comparison",
     ])
     
     with tab1:
@@ -367,10 +381,10 @@ def main():
         node_metrics_tab.render(filtered_runs, logs_dir)
     
     with tab4:
-        config_tab.render(filtered_runs)
+        rate_match_tab.render(filtered_runs, logs_dir)
     
     with tab5:
-        comparison_tab.render(filtered_runs, df, logs_dir)
+        config_tab.render(filtered_runs)
 
 
 if __name__ == "__main__":

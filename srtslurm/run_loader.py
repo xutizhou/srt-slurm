@@ -226,19 +226,29 @@ class RunLoader:
         if cache_mgr.is_cache_valid("benchmark_results", source_patterns):
             cached_df = cache_mgr.load_from_cache("benchmark_results")
             if cached_df is not None and not cached_df.empty:
-                # Populate run.profiler from cached DataFrame
+                # Populate run.profiler from cached DataFrame - load all available columns
                 results = {
                     "concurrencies": cached_df["concurrency"].tolist(),
                     "output_tps": cached_df["output_tps"].tolist(),
                     "mean_itl_ms": cached_df["mean_itl_ms"].tolist(),
                     "mean_ttft_ms": cached_df["mean_ttft_ms"].tolist(),
                     "request_rate": cached_df["request_rate"].tolist(),
-                    "mean_tpot_ms": (
-                        cached_df["mean_tpot_ms"].tolist()
-                        if "mean_tpot_ms" in cached_df.columns
-                        else []
-                    ),
                 }
+                
+                # Optional fields (may not exist in old cache files)
+                optional_fields = [
+                    "mean_tpot_ms", "total_tps", "request_throughput", "request_goodput",
+                    "mean_e2el_ms", "median_ttft_ms", "median_tpot_ms", "median_itl_ms", 
+                    "median_e2el_ms", "p99_ttft_ms", "p99_tpot_ms", "p99_itl_ms", "p99_e2el_ms",
+                    "std_ttft_ms", "std_tpot_ms", "std_itl_ms", "std_e2el_ms",
+                    "total_input_tokens", "total_output_tokens"
+                ]
+                for field in optional_fields:
+                    if field in cached_df.columns:
+                        results[field] = cached_df[field].tolist()
+                    else:
+                        results[field] = []
+                
                 run.profiler.add_benchmark_results(results)
                 return
 
@@ -254,7 +264,7 @@ class RunLoader:
 
                         # Save to cache
                         if results["concurrencies"]:
-                            # Convert to DataFrame for caching
+                            # Convert to DataFrame for caching - cache ALL parsed fields
                             cache_data = {
                                 "concurrency": results["concurrencies"],
                                 "output_tps": results["output_tps"],
@@ -262,8 +272,33 @@ class RunLoader:
                                 "mean_ttft_ms": results["mean_ttft_ms"],
                                 "request_rate": results["request_rate"],
                             }
-                            if results["mean_tpot_ms"]:
-                                cache_data["mean_tpot_ms"] = results["mean_tpot_ms"]
+                            
+                            # Add all optional fields if they have data
+                            optional_fields = {
+                                "mean_tpot_ms": "mean_tpot_ms",
+                                "total_tps": "total_tps", 
+                                "request_throughput": "request_throughput",
+                                "request_goodput": "request_goodput",
+                                "mean_e2el_ms": "mean_e2el_ms",
+                                "median_ttft_ms": "median_ttft_ms",
+                                "median_tpot_ms": "median_tpot_ms",
+                                "median_itl_ms": "median_itl_ms",
+                                "median_e2el_ms": "median_e2el_ms",
+                                "p99_ttft_ms": "p99_ttft_ms",
+                                "p99_tpot_ms": "p99_tpot_ms",
+                                "p99_itl_ms": "p99_itl_ms",
+                                "p99_e2el_ms": "p99_e2el_ms",
+                                "std_ttft_ms": "std_ttft_ms",
+                                "std_tpot_ms": "std_tpot_ms",
+                                "std_itl_ms": "std_itl_ms",
+                                "std_e2el_ms": "std_e2el_ms",
+                                "total_input_tokens": "total_input_tokens",
+                                "total_output_tokens": "total_output_tokens",
+                            }
+                            
+                            for result_key, cache_key in optional_fields.items():
+                                if results.get(result_key):
+                                    cache_data[cache_key] = results[result_key]
 
                             cache_df = pd.DataFrame(cache_data)
                             cache_mgr.save_to_cache("benchmark_results", cache_df, source_patterns)
@@ -501,11 +536,12 @@ class RunLoader:
                     "Profiler": run.profiler.profiler_type,
                     "ISL": run.profiler.isl,
                     "OSL": run.profiler.osl,
-                    "Prefill TP": run.metadata.gpus_per_node,
-                    "Prefill DP": run.metadata.prefill_nodes,
-                    "Decode TP": run.metadata.gpus_per_node,
-                    "Decode DP": run.metadata.decode_nodes,
+                    "Prefill Nodes": run.metadata.prefill_nodes,
+                    "Decode Nodes": run.metadata.decode_nodes,
+                    "Prefill Workers": run.metadata.prefill_workers,
+                    "Decode Workers": run.metadata.decode_workers,
                     "Frontends": run.metadata.num_additional_frontends,
+                    "GPUs per Node": run.metadata.gpus_per_node,
                     "Total GPUs": total_gpus,
                     "Request Rate": (
                         run.profiler.request_rate[i]

@@ -3,9 +3,7 @@ Node-Level Metrics Tab
 """
 
 import os
-from datetime import datetime
 
-import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.components import (
@@ -45,6 +43,19 @@ def render(filtered_runs: list, logs_dir: str):
                 node_metrics = load_node_metrics(run_path)
                 for node_data in node_metrics:
                     node_data["run_id"] = run_id
+                    # Add run metadata for better labels
+                    node_data["run_metadata"] = {
+                        "job_id": run.job_id,
+                        "prefill_nodes": run.metadata.prefill_nodes,
+                        "decode_nodes": run.metadata.decode_nodes,
+                        "prefill_workers": run.metadata.prefill_workers,
+                        "decode_workers": run.metadata.decode_workers,
+                        "gpus_per_node": run.metadata.gpus_per_node,
+                        "total_gpus": run.total_gpus,
+                        "isl": run.profiler.isl,
+                        "osl": run.profiler.osl,
+                        "gpu_type": run.metadata.gpu_type,
+                    }
                 all_node_metrics.extend(node_metrics)
     
     if not all_node_metrics:
@@ -98,7 +109,7 @@ def render(filtered_runs: list, logs_dir: str):
     if decode_nodes:
         st.divider()
         st.markdown("### 📥 Decode Node Metrics")
-        _render_decode_metrics(decode_nodes, prefill_nodes, group_by_dp, aggregate_all)
+        _render_decode_metrics(decode_nodes, group_by_dp, aggregate_all)
 
 
 def _render_prefill_metrics(prefill_nodes, group_by_dp, aggregate_all):
@@ -129,7 +140,7 @@ def _render_prefill_metrics(prefill_nodes, group_by_dp, aggregate_all):
     st.caption("Prefill requests waiting in queue - growing queue indicates backpressure or overload")
 
 
-def _render_decode_metrics(decode_nodes, prefill_nodes, group_by_dp, aggregate_all):
+def _render_decode_metrics(decode_nodes, group_by_dp, aggregate_all):
     """Render decode node metrics."""
     # Check if decode nodes have batch data
     has_data = any(node_data["prefill_batches"] for node_data in decode_nodes)
@@ -161,15 +172,6 @@ def _render_decode_metrics(decode_nodes, prefill_nodes, group_by_dp, aggregate_a
     queue_decode_fig.update_yaxes(showgrid=True)
     st.plotly_chart(queue_decode_fig, width="stretch", key="decode_queue_v2")
     st.caption("Decode requests waiting in queue - indicates decode capacity constraints")
-    
-    # Rate Matching Graph
-    st.divider()
-    st.markdown("#### Rate Match")
-    st.caption("Compare prefill input rate vs decode generation rate to verify proper node ratio")
-    
-    rate_fig = _create_rate_match_graph(prefill_nodes, decode_nodes)
-    st.plotly_chart(rate_fig, width="stretch", key="rate_match")
-    st.caption(f"Rate matched when lines align. Prefill: {len(prefill_nodes)} node(s), Decode: {len(decode_nodes)} node(s)")
     
     # Disaggregation metrics with toggle
     st.divider()
@@ -203,87 +205,3 @@ def _render_decode_metrics(decode_nodes, prefill_nodes, group_by_dp, aggregate_a
         st.caption("Requests in pre-allocation queue for PD disaggregation - waiting for memory allocation on decode workers")
 
 
-def _create_rate_match_graph(prefill_nodes, decode_nodes):
-    """Create rate matching graph comparing prefill input vs decode generation."""
-    rate_fig = go.Figure()
-    
-    # Get prefill input throughput over time
-    if prefill_nodes:
-        for p_node in prefill_nodes:
-            timestamps = []
-            input_tps = []
-            
-            for batch in p_node["prefill_batches"]:
-                if batch.get("input_throughput") is not None:
-                    ts = batch.get("timestamp", "")
-                    if ts:
-                        timestamps.append(ts)
-                        input_tps.append(batch["input_throughput"])
-            
-            if timestamps:
-                first_time = datetime.strptime(timestamps[0], "%Y-%m-%d %H:%M:%S")
-                elapsed = [
-                    (datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") - first_time).total_seconds()
-                    for ts in timestamps
-                ]
-                
-                rate_fig.add_trace(
-                    go.Scatter(
-                        x=elapsed,
-                        y=input_tps,
-                        mode="lines+markers",
-                        name="Prefill Input (tok/s)",
-                        line={"color": "orange", "width": 2},
-                    )
-                )
-    
-    # Get decode gen throughput over time
-    if decode_nodes:
-        all_decode_batches = {}
-        for d_node in decode_nodes:
-            for batch in d_node["prefill_batches"]:
-                if batch.get("gen_throughput") is not None and batch.get("gen_throughput") > 0:
-                    ts = batch.get("timestamp", "")
-                    if ts:
-                        if ts not in all_decode_batches:
-                            all_decode_batches[ts] = []
-                        all_decode_batches[ts].append(batch["gen_throughput"])
-        
-        timestamps = []
-        total_gen_tps = []
-        num_decode = len(decode_nodes)
-        
-        for ts in sorted(all_decode_batches.keys()):
-            avg_gen = sum(all_decode_batches[ts]) / len(all_decode_batches[ts])
-            total_gen = avg_gen * num_decode
-            timestamps.append(ts)
-            total_gen_tps.append(total_gen)
-        
-        if timestamps:
-            first_time = datetime.strptime(timestamps[0], "%Y-%m-%d %H:%M:%S")
-            elapsed = [
-                (datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") - first_time).total_seconds()
-                for ts in timestamps
-            ]
-            
-            rate_fig.add_trace(
-                go.Scatter(
-                    x=elapsed,
-                    y=total_gen_tps,
-                    mode="lines+markers",
-                    name=f"Decode Gen (tok/s) × {num_decode} nodes",
-                    line={"color": "green", "width": 2},
-                )
-            )
-    
-    rate_fig.update_layout(
-        title="Rate Match: Prefill Input vs Decode Generation",
-        xaxis_title="Time Elapsed (seconds)",
-        yaxis_title="Throughput (tokens/s)",
-        hovermode="x unified",
-        height=500,
-    )
-    rate_fig.update_xaxes(showgrid=True)
-    rate_fig.update_yaxes(showgrid=True)
-    
-    return rate_fig

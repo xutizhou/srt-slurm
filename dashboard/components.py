@@ -239,8 +239,8 @@ def create_node_inflight_requests_graph(node_metrics_list, group_by_dp=False, ag
         title="Inflight Requests Over Time",
         y_label="Number of Requests",
         metric_key="inflight_req",
-        mode="lines",
-        stackgroup="one",
+        mode="lines+markers",
+        stackgroup=None,  # Don't stack - show individual lines
         group_by_dp=group_by_dp,
         aggregate_all=aggregate_all,
     )
