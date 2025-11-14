@@ -175,7 +175,7 @@ elif [ "$mode" = "decode" ]; then
     PYTHONUNBUFFERED=1 \
     SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK=384 \
     SGLANG_CUTEDSL_MOE_NVFP4_DISPATCH=1 \
-    SGLANG_FP4_GEMM_BACKEND=cutlass
+    SGLANG_FP4_GEMM_BACKEND=cutlass \
     python3 -m dynamo.sglang \
         --disaggregation-mode decode \
         --host 0.0.0.0 \
@@ -213,3 +213,4 @@ elif [ "$mode" = "decode" ]; then
         --max-total-tokens 1703116 \
         --quantization modelopt_fp4 \
         --moe-runner-backend flashinfer_cutedsl ${command_suffix}
+fi
