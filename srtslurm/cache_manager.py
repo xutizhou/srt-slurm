@@ -7,10 +7,13 @@ every time the Streamlit app loads.
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class CacheManager:
@@ -147,7 +150,7 @@ class CacheManager:
         }
         self._save_metadata(metadata)
 
-        print(f"✓ Cached {len(df)} rows to {cache_file.name}")
+        logger.info(f"Cached {len(df)} rows to {cache_file.name}")
 
     def load_from_cache(self, cache_name: str) -> pd.DataFrame | None:
         """Load data from parquet cache.
@@ -164,10 +167,10 @@ class CacheManager:
 
         try:
             df = pd.read_parquet(cache_file)
-            print(f"✓ Loaded {len(df)} rows from {cache_file.name}")
+            logger.info(f"Loaded {len(df)} rows from {cache_file.name}")
             return df
         except Exception as e:
-            print(f"⚠ Failed to load cache {cache_file.name}: {e}")
+            logger.warning(f"Failed to load cache {cache_file.name}: {e}")
             return None
 
     def invalidate_cache(self, cache_name: str | None = None) -> None:
@@ -181,7 +184,7 @@ class CacheManager:
             cache_file = self.cache_dir / f"{cache_name}.parquet"
             if cache_file.exists():
                 cache_file.unlink()
-                print(f"✓ Invalidated cache: {cache_name}")
+                logger.info(f"Invalidated cache: {cache_name}")
 
             # Remove from metadata
             metadata = self._load_metadata()
@@ -194,4 +197,4 @@ class CacheManager:
                 cache_file.unlink()
             if self.metadata_file.exists():
                 self.metadata_file.unlink()
-            print("✓ Invalidated all caches")
+            logger.info("Invalidated all caches")

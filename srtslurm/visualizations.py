@@ -4,6 +4,7 @@ Visualization utilities for creating Plotly graphs
 Provides generic graph builders to reduce repetition and improve maintainability.
 """
 
+import logging
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
@@ -12,6 +13,8 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+
+logger = logging.getLogger(__name__)
 
 
 def parse_elapsed_time(timestamps: list[str]) -> list[float]:
@@ -33,7 +36,7 @@ def parse_elapsed_time(timestamps: list[str]) -> list[float]:
         return elapsed
     except (ValueError, AttributeError) as e:
         # Fallback to sample numbers if parsing fails
-        print(f"Warning: Failed to parse timestamps: {e}")
+        logger.warning(f"Failed to parse timestamps: {e}")
         return list(range(len(timestamps)))
 
 

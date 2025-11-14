@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 
 
 def progress_callback(current: int, total: int, filename: str):
-    """Progress callback for file operations."""
+    """Progress callback for file operations.
+    
+    Note: Uses print() for interactive progress display with carriage returns.
+    This is intentional for CLI tools and doesn't work well with logging.
+    """
     percentage = (current / total) * 100
     print(f"\r[{current}/{total}] ({percentage:.1f}%) {filename}", end="", flush=True)
     if current == total:
@@ -36,7 +40,10 @@ def progress_callback(current: int, total: int, filename: str):
 
 
 def sync_progress_callback(run_name: str, current: int, total: int):
-    """Progress callback for sync operations."""
+    """Progress callback for sync operations.
+    
+    Note: Uses print() for interactive progress display.
+    """
     print(f"[{current}/{total}] Syncing {run_name}...")
 
 
@@ -145,9 +152,9 @@ def cmd_list_remote(args, sync_manager):
         logger.info("No runs found in cloud storage")
         return 0
 
-    print(f"\nFound {len(runs)} run(s) in cloud storage:\n")
+    logger.info(f"Found {len(runs)} run(s) in cloud storage:")
     for run in runs:
-        print(f"  • {run}")
+        logger.info(f"  • {run}")
 
     return 0
 

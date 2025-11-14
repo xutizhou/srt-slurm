@@ -7,6 +7,9 @@ import logging
 import os
 from typing import Any
 
+import pandas as pd
+
+from .cache_manager import CacheManager
 from .models import NodeConfig, ParsedCommandInfo
 
 # Configure logging
@@ -289,6 +292,8 @@ def parse_command_line_to_dict(cmd_args: list[str]) -> dict[str, str]:
 def parse_command_line_from_err(run_path: str) -> ParsedCommandInfo:
     """Parse .err files to find explicitly set flags and service topology.
 
+    Uses parquet caching to avoid re-parsing on subsequent loads.
+
     Expected .err file format:
     - Filename pattern: <node>_<service>_<id>.err (e.g., watchtower-navy-cn01_prefill_w0.err)
     - Contains line with: python3 -m ... sglang --flag1 value1 --flag2 value2 ...
@@ -305,6 +310,33 @@ def parse_command_line_from_err(run_path: str) -> ParsedCommandInfo:
     import os
     import re
 
+    # Initialize cache manager
+    cache_mgr = CacheManager(run_path)
+    source_patterns = ["*.err"]
+
+    # Try to load from cache first
+    if cache_mgr.is_cache_valid("config_topology", source_patterns):
+        cached_df = cache_mgr.load_from_cache("config_topology")
+        if cached_df is not None and not cached_df.empty:
+            # Reconstruct data from cache
+            explicit_flags = set(cached_df[cached_df["type"] == "flag"]["name"].tolist())
+            
+            # Reconstruct services dict
+            services: dict[str, list[str]] = {}
+            service_rows = cached_df[cached_df["type"] == "service"]
+            for _, row in service_rows.iterrows():
+                node_name = row["node_name"]
+                service_type = row["name"]
+                if node_name not in services:
+                    services[node_name] = []
+                services[node_name].append(service_type)
+            
+            logger.info(
+                f"Loaded {len(explicit_flags)} flags and {len(services)} nodes from cache"
+            )
+            return {"explicit_flags": explicit_flags, "services": services}
+
+    # Cache miss - parse from .err files
     explicit_flags: set = set()
     services: dict[str, list[str]] = {}
     err_files_found = 0
@@ -365,5 +397,19 @@ def parse_command_line_from_err(run_path: str) -> ParsedCommandInfo:
         f"Parsed {err_files_found} .err files, found {commands_found} commands, "
         f"{len(explicit_flags)} unique flags, {len(services)} nodes"
     )
+
+    # Save to cache
+    cache_rows = []
+    # Store flags
+    for flag in explicit_flags:
+        cache_rows.append({"type": "flag", "name": flag, "node_name": None})
+    # Store services
+    for node_name, service_types in services.items():
+        for service_type in service_types:
+            cache_rows.append({"type": "service", "name": service_type, "node_name": node_name})
+    
+    if cache_rows:
+        cache_df = pd.DataFrame(cache_rows)
+        cache_mgr.save_to_cache("config_topology", cache_df, source_patterns)
 
     return {"explicit_flags": explicit_flags, "services": services}
