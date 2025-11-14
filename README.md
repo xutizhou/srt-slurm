@@ -1,71 +1,167 @@
-# SRT Slurm
+# InfBench
 
-Benchmarking toolkit for Dynamo and SGLang on SLURM.
+Benchmarking toolkit for Dynamo and SGLang on SLURM clusters with interactive analysis dashboard.
 
-## Run a benchmark
+## Quick Start
 
-1. Run `make setup` to download the neccesary dynamo dependencies. This pulls in `nats` and `etcd` and the dynamo pip wheels. This allows you to use any container found on the [lmsys dockerhub](https://hub.docker.com/r/lmsysorg/sglang/tags) and use dynamo orchestration.
-
-2. Run your very first benchmark using the following python command. WIP to make this command much much shorter and possibly hold some of the common pieces in a configuration file.
+### 1. Setup (One-Time)
 
 ```bash
+make setup
+```
+
+This downloads dependencies (nats, etcd, dynamo wheels) and creates `srtslurm.yaml` with your cluster settings.
+
+### 2. Run Benchmarks
+
+```bash
+cd slurm_runner
 python3 submit_job_script.py \
-  --model-dir /mnt/lustre01/models/deepseek-r1-0528-fp4-v2 \
-  --container-image /mnt/lustre01/users/slurm-shared/ishan/lmsysorg+sglang+v0.5.5.post2.sqsh \
-  --gpus-per-node 4 \
-  --config-dir /mnt/lustre01/users/slurm-shared/ishan/srt-slurm/configs \
+  --model-dir /path/to/model \
   --gpu-type gb200-fp4 \
-  --network-interface enP6p9s0np0 \
+  --gpus-per-node 4 \
   --prefill-nodes 1 \
   --decode-nodes 12 \
   --prefill-workers 1 \
   --decode-workers 1 \
-  --account nvidia \
-  --partition batch \
-  --time-limit 4:00:00 \
-  --enable-multiple-frontends \
-  --num-additional-frontends 9 \
-  --benchmark "type=sa-bench; isl=1024; osl=1024; concurrencies=1x8x32x128x512x1024x2048x4096x8192; req-rate=inf" \
   --script-variant max-tpt \
-  --use-dynamo-whls \
-  --log-dir /mnt/lustre01/users-public/slurm-shared/joblogs
+  --benchmark "type=sa-bench; isl=1024; osl=1024; concurrencies=1024x2048x4096; req-rate=inf"
 ```
 
-For more info on the submission script see [slurm_jobs/README.md](slurm_jobs/README.md)
+Logs saved to `logs/{JOB_ID}_{P}P_{D}D_{TIMESTAMP}/`
 
-## Run the UI
+See [slurm_runner/README.md](slurm_runner/README.md) for detailed options.
+
+### 3. Analyze Results
 
 ```bash
 ./run_dashboard.sh
 ```
 
-The dashboard will open at http://localhost:8501 and scan the current directory for benchmark runs. You can specify your own log directory in the UI itself.
+Opens interactive dashboard at http://localhost:8501
 
-## What It Does
+## Features
 
-**Pareto Analysis** - Compare throughput efficiency (TPS/GPU) vs per-user throughput (TPS/User) across configurations
+### 📊 Interactive Dashboard
 
-**Latency Breakdown** - Visualize TTFT, TPOT, and ITL metrics as concurrency increases
+- **Pareto Analysis** - TPS/GPU vs TPS/User tradeoffs
+- **Latency Breakdown** - TTFT, TPOT, ITL across concurrency levels
+- **Node Metrics** - Runtime metrics from prefill/decode nodes
+- **Config Comparison** - Side-by-side configuration diffs
+- **Run Comparison** - Performance deltas between runs
 
-**Config Comparison** - View deployment settings (TP/DP) and hardware specs side-by-side
+### 🚀 SLURM Job Submission
 
-**Data Export** - Sort, filter, and export metrics to CSV
+- Disaggregated (prefill/decode) or aggregated mode
+- Multiple frontends with nginx load balancing (default)
+- Automated benchmarking with sa-bench
+- Job metadata tracking
+
+### ☁️ Cloud Sync (Optional)
+
+Sync benchmark results to S3-compatible storage:
+
+```bash
+# Install dependency
+pip install boto3
+
+# Configure in srtslurm.yaml
+cloud:
+  endpoint_url: "https://s3.your-cloud.com"
+  bucket: "benchmark-results"
+  prefix: "runs/"
+
+# Push results
+./push_after_benchmark.sh
+
+# Dashboard auto-pulls missing runs
+```
+
+See **Cloud Storage Sync** section below for details.
+
+## Configuration
+
+All defaults in `srtslurm.yaml` (created by `make setup`):
+
+```yaml
+cluster:
+  account: "your-account"
+  partition: "batch"
+  network_interface: "enP6p9s0np0"
+  time_limit: "4:00:00"
+  container_image: "/path/to/container.sqsh"
+
+cloud:
+  endpoint_url: "" # Optional
+  bucket: ""
+  prefix: "benchmark-results/"
+```
+
+Override any setting via CLI flags.
+
+## Repository Structure
+
+```
+infbench/
+├── dashboard/           # Streamlit UI (modular tabs)
+├── srtslurm/           # Core analysis library
+├── slurm_runner/       # SLURM job submission scripts
+├── logs/               # Benchmark results
+├── configs/            # Dynamo dependencies (nats, etcd, wheels)
+├── tests/              # Unit tests
+└── srtslurm.yaml       # Configuration (gitignored)
+```
 
 ## Key Metrics
 
-- **Output TPS/GPU** - Throughput per GPU (higher = more efficient)
-- **Output TPS/User** - Throughput per concurrent user (higher = better responsiveness)
-- **TTFT** - Time to first token (lower = faster start)
-- **TPOT** - Time per output token (lower = faster generation)
-- **ITL** - Inter-token latency (lower = smoother streaming)
+- **Output TPS/GPU** - Token generation throughput per GPU (efficiency)
+- **Output TPS/User** - Tokens per second per concurrent user (responsiveness)
+- **TTFT** - Time to first token (perceived latency)
+- **TPOT** - Time per output token (streaming speed)
+- **ITL** - Inter-token latency (includes queueing)
 
-## Directory Structure
+## Cloud Storage Sync
 
-This structure comes built into the scripts. WIP to handle other directory structures.
+### Setup
 
-The app expects benchmark runs in subdirectories with:
+1. Install boto3: `pip install boto3`
+2. Add cloud settings to `srtslurm.yaml` (see above)
+3. Set credentials:
+   ```bash
+   export AWS_ACCESS_KEY_ID="your-key"
+   export AWS_SECRET_ACCESS_KEY="your-secret"
+   ```
 
-- `{jobid}.json` - Metadata file with run configuration (required)
-- `vllm_isl_*_osl_*/` containing `*.json` result files
-- `*_config.json` files for node configurations
-- `*_prefill_*.err` and `*_decode_*.err` files for node metrics
+### Usage
+
+**Push from cluster:**
+
+```bash
+./push_after_benchmark.sh                    # Push all runs
+./push_after_benchmark.sh --log-dir /path    # Specify directory
+./push_after_benchmark.sh 3667_1P_12D_...   # Push single run
+```
+
+**Pull locally:**
+Dashboard auto-syncs missing runs on startup. Or manually:
+
+```bash
+uv run python slurm_runner/scripts/sync_results.py pull-missing
+uv run python slurm_runner/scripts/sync_results.py list-remote
+```
+
+## Development
+
+```bash
+make lint        # Run linters
+make test        # Run tests
+make dashboard   # Launch dashboard
+```
+
+## Requirements
+
+- Python 3.10+ (stdlib yaml support)
+- SLURM cluster with Pyxis (for container support)
+- GPU nodes (tested on GB200 NVL72)
+
+For detailed SLURM job submission docs, see [slurm_runner/README.md](slurm_runner/README.md).

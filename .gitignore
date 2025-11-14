@@ -1,4 +1,7 @@
-# Log directories (pattern: <jobid>_<config>_<date>_<time>/)
+# Logs directory - ignore all benchmark runs
+logs/*/
+
+# Also ignore benchmark run directories in root (legacy)
 [0-9]*_[0-9]*P_[0-9]*D_[0-9]*_[0-9]*/
 
 # Python
@@ -29,5 +32,16 @@ uv.lock
 .DS_Store
 Thumbs.db
 
-configs/
+# Cluster and cloud config (contains credentials and cluster-specific settings)
+srtslurm.yaml
+srtslurm.toml
+
+# Configs - ignore downloaded files but keep deepep_config.json
+configs/nats-server
+configs/etcd
+configs/etcdctl
+configs/*.whl
+configs/*.deb
+configs/*.tar.gz
+
 .ruff_cache/

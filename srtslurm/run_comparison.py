@@ -101,40 +101,40 @@ def compare_configs(config_a: dict, config_b: dict) -> dict:
     }
 
 
-def compare_metrics(run_a: dict, run_b: dict) -> pd.DataFrame:
+def compare_metrics(run_a, run_b) -> pd.DataFrame:
     """Compare performance metrics between two runs at matching concurrency levels.
 
     Args:
-        run_a: Run data dict with metrics arrays
-        run_b: Run data dict with metrics arrays
+        run_a: BenchmarkRun object
+        run_b: BenchmarkRun object
 
     Returns:
         DataFrame with columns: Concurrency, Metric, Run A, Run B, Delta, % Change
     """
 
-    # Calculate derived metrics if not already present
-    def ensure_derived_metrics(run: dict) -> dict:
-        """Ensure run has output_tps_per_gpu and output_tps_per_user calculated."""
-        if "output_tps_per_gpu" not in run or "output_tps_per_user" not in run:
-            # Calculate total GPUs
-            total_gpus = run.get("prefill_tp", 0) * run.get("prefill_dp", 0) + run.get(
-                "decode_tp", 0
-            ) * run.get("decode_dp", 0)
-            if total_gpus == 0:
-                total_gpus = 1  # Avoid division by zero
+    # Helper to calculate derived metrics from BenchmarkRun
+    def get_derived_metrics(run) -> dict:
+        """Extract metrics from BenchmarkRun object."""
+        total_gpus = run.total_gpus if run.total_gpus > 0 else 1
 
-            # Calculate Output TPS/GPU
-            output_tps = run.get("output_tps", [])
-            run["output_tps_per_gpu"] = [tps / total_gpus for tps in output_tps]
+        return {
+            "concurrencies": run.profiler.concurrency_values,
+            "output_tps": run.profiler.output_tps,
+            "output_tps_per_gpu": [tps / total_gpus for tps in run.profiler.output_tps],
+            "output_tps_per_user": [
+                1000 / tpot if tpot > 0 else 0 for tpot in run.profiler.mean_tpot_ms
+            ],
+            "mean_ttft_ms": run.profiler.mean_ttft_ms,
+            "p99_ttft_ms": run.profiler.p99_ttft_ms,
+            "mean_tpot_ms": run.profiler.mean_tpot_ms,
+            "p99_tpot_ms": run.profiler.p99_tpot_ms,
+            "mean_itl_ms": run.profiler.mean_itl_ms,
+            "p99_itl_ms": run.profiler.p99_itl_ms,
+            "mean_e2el_ms": run.profiler.mean_e2el_ms,
+        }
 
-            # Calculate Output TPS/User as 1000 / TPOT
-            mean_tpot = run.get("mean_tpot_ms", [])
-            run["output_tps_per_user"] = [1000 / tpot if tpot > 0 else 0 for tpot in mean_tpot]
-
-        return run
-
-    run_a = ensure_derived_metrics(run_a)
-    run_b = ensure_derived_metrics(run_b)
+    metrics_a = get_derived_metrics(run_a)
+    metrics_b = get_derived_metrics(run_b)
 
     # Extract metrics that we want to compare
     metrics_to_compare = [
@@ -150,8 +150,8 @@ def compare_metrics(run_a: dict, run_b: dict) -> pd.DataFrame:
         ("Mean E2EL (ms)", "mean_e2el_ms"),
     ]
 
-    concurrencies_a = run_a.get("concurrencies", [])
-    concurrencies_b = run_b.get("concurrencies", [])
+    concurrencies_a = metrics_a["concurrencies"]
+    concurrencies_b = metrics_b["concurrencies"]
 
     # Find common concurrency levels
     common_concurrencies = set(concurrencies_a) & set(concurrencies_b)
@@ -167,8 +167,8 @@ def compare_metrics(run_a: dict, run_b: dict) -> pd.DataFrame:
         idx_b = concurrencies_b.index(concurrency)
 
         for metric_name, metric_key in metrics_to_compare:
-            values_a = run_a.get(metric_key, [])
-            values_b = run_b.get(metric_key, [])
+            values_a = metrics_a.get(metric_key, [])
+            values_b = metrics_b.get(metric_key, [])
 
             if idx_a < len(values_a) and idx_b < len(values_b):
                 value_a = values_a[idx_a]
@@ -278,18 +278,18 @@ def calculate_summary_scorecard(comparison_df: pd.DataFrame) -> dict:
     }
 
 
-def get_delta_data_for_graphs(run_a: dict, run_b: dict) -> pd.DataFrame:
+def get_delta_data_for_graphs(run_a, run_b) -> pd.DataFrame:
     """Prepare delta data for visualization graphs.
 
     Args:
-        run_a: Run data dict
-        run_b: Run data dict
+        run_a: BenchmarkRun object
+        run_b: BenchmarkRun object
 
     Returns:
         DataFrame with columns: Concurrency, TTFT Delta, TPOT Delta, ITL Delta, Throughput Delta
     """
-    concurrencies_a = run_a.get("concurrencies", [])
-    concurrencies_b = run_b.get("concurrencies", [])
+    concurrencies_a = run_a.profiler.concurrency_values
+    concurrencies_b = run_b.profiler.concurrency_values
 
     common_concurrencies = set(concurrencies_a) & set(concurrencies_b)
 
@@ -310,8 +310,8 @@ def get_delta_data_for_graphs(run_a: dict, run_b: dict) -> pd.DataFrame:
         }
 
         for delta_name, (metric_key, idx_a, idx_b) in metrics.items():
-            values_a = run_a.get(metric_key, [])
-            values_b = run_b.get(metric_key, [])
+            values_a = getattr(run_a.profiler, metric_key, [])
+            values_b = getattr(run_b.profiler, metric_key, [])
 
             if idx_a < len(values_a) and idx_b < len(values_b):
                 value_a = values_a[idx_a]

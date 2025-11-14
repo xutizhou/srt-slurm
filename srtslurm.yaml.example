@@ -1,0 +1,20 @@
+# SRT SLURM Configuration
+# Copy this to srtslurm.yaml and fill in your values
+
+cluster:
+  # SLURM cluster settings - these are defaults that can be overridden via CLI
+  account: "restricted"
+  partition: "batch"
+  network_interface: "enP6p9s0np0"
+  time_limit: "4:00:00"
+  container_image: ""  # Optional default container image
+
+cloud:
+  # S3-compatible cloud storage for syncing benchmark results (optional)
+  endpoint_url: ""     # e.g., "https://s3.us-west-2.amazonaws.com"
+  bucket: ""           # e.g., "my-benchmark-results"
+  prefix: "benchmark-results/"
+
+# Credentials should be set as environment variables:
+# export AWS_ACCESS_KEY_ID="your-access-key"
+# export AWS_SECRET_ACCESS_KEY="your-secret-key"

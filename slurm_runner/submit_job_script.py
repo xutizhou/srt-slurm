@@ -28,33 +28,13 @@ from datetime import datetime
 
 from jinja2 import Template
 
+from cluster_config import validate_cluster_settings, get_cluster_setting
+
 
 def print_welcome_message(job_ids: list[str], log_dir_name: str):
-    """Print a clean welcome message with job information."""
-
-    _ = f"{', '.join(job_ids)}"
+    """Print a concise welcome message with log directory info."""
     print(
-        f"""
-🚀 Welcome! We hope you enjoy your time on our GB200 NVL72.
-
-Your logs for this submitted job will be available in {log_dir_name}
-You can access them by running:
-
-    cd {log_dir_name}
-
-You can view all of the prefill/decode worker logs by running:
-
-    tail -f *_decode_*.err *_prefill_*.err
-
-To kick off the benchmark we suggest opening up a new terminal, SSH-ing
-into the login node, and running the srun command that is found at the
-bottom of the log.out. You can find it by running:
-
-    cat log.out
-
-Enjoy :)
-- NVIDIA
-"""
+        f"\nYour logs will be in ../{log_dir_name}. To access them, run:\n\n    cd ../{log_dir_name}\n"
     )
 
 
@@ -140,7 +120,7 @@ def create_job_metadata(
             "script_variant": args.script_variant,
             "use_init_location": args.use_init_location,
             "enable_config_dump": args.enable_config_dump,
-            "use_dynamo_whls": args.use_dynamo_whls,
+            "use_dynamo_whls": True,  # Always true when config-dir is set
             "log_dir": args.log_dir if args.log_dir else "logs",
         },
         "profiler_metadata": benchmark_config,
@@ -201,12 +181,20 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
 
     # Template parameters
     parser.add_argument("--job-name", default="dynamo_setup", help="SLURM job name")
-    parser.add_argument("--account", required=True, help="SLURM account")
+    parser.add_argument("--account", default=None, help="SLURM account (or set in srtslurm.yaml)")
     parser.add_argument("--model-dir", required=True, help="Model directory path")
-    parser.add_argument("--config-dir", required=True, help="Config directory path")
-    parser.add_argument("--container-image", required=True, help="Container image")
     parser.add_argument(
-        "--time-limit", default="04:00:00", help="Time limit (HH:MM:SS)"
+        "--config-dir",
+        default=None,
+        help="Config directory with dynamo wheels/binaries (default: ../configs from slurm_runner/)",
+    )
+    parser.add_argument(
+        "--container-image",
+        default=None,
+        help="Container image (or set in srtslurm.yaml)",
+    )
+    parser.add_argument(
+        "--time-limit", default=None, help="Time limit (default: 04:00:00 or from srtslurm.yaml)"
     )
     parser.add_argument(
         "--prefill-nodes", type=int, default=None, help="Number of prefill nodes"
@@ -230,7 +218,7 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
         "--gpus-per-node", type=int, default=8, help="Number of GPUs per node"
     )
     parser.add_argument(
-        "--network-interface", default="eth3", help="Network interface to use"
+        "--network-interface", default=None, help="Network interface (or set in srtslurm.yaml)"
     )
     parser.add_argument(
         "--gpu-type",
@@ -247,19 +235,26 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
 
     parser.add_argument(
         "--partition",
-        default="batch",
-        help="SLURM partition to use",
+        default=None,
+        help="SLURM partition (or set in srtslurm.yaml)",
     )
     parser.add_argument(
         "--enable-multiple-frontends",
         action="store_true",
-        help="Enable multiple frontend architecture with nginx load balancer",
+        default=True,
+        help="Enable multiple frontend architecture with nginx load balancer (default: True)",
+    )
+    parser.add_argument(
+        "--disable-multiple-frontends",
+        action="store_false",
+        dest="enable_multiple_frontends",
+        help="Disable multiple frontends (use single frontend)",
     )
     parser.add_argument(
         "--num-additional-frontends",
         type=int,
-        default=0,
-        help="Number of additional frontend nodes (beyond the first frontend on node 1)",
+        default=9,
+        help="Number of additional frontend nodes (default: 9)",
     )
 
     parser.add_argument(
@@ -298,16 +293,10 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
     )
 
     parser.add_argument(
-        "--use-dynamo-whls",
-        action="store_true",
-        help="Use dynamo wheel files from config-dir and binaries from /configs/ for nats/etcd",
-    )
-
-    parser.add_argument(
         "--log-dir",
         type=str,
         default=None,
-        help="Directory to save logs (default: repo root/logs). Path relative to slurm_jobs/ or absolute.",
+        help="Directory to save logs (default: repo root/logs). Path relative to slurm_runner/ or absolute.",
     )
 
     return parser.parse_args(args)
@@ -315,6 +304,21 @@ def _parse_command_line_args(args: list[str] | None = None) -> argparse.Namespac
 
 def _validate_args(args: argparse.Namespace) -> None:
     """Validate arguments and ensure aggregated and disaggregated args are mutually exclusive."""
+    # Config file is in repo root (parent of slurm_runner/)
+    config_path = str(pathlib.Path(__file__).parent.parent / "srtslurm.yaml")
+    
+    # Validate cluster settings with config file fallback
+    try:
+        args.account, args.partition, args.network_interface = validate_cluster_settings(
+            args.account, args.partition, args.network_interface, config_path
+        )
+    except ValueError as e:
+        raise ValueError(f"Cluster configuration error: {e}")
+    
+    # Apply time limit default
+    if args.time_limit is None:
+        args.time_limit = get_cluster_setting("time_limit", None, config_path) or "04:00:00"
+    
     has_disagg_args = any(
         [
             args.prefill_nodes is not None,
@@ -398,6 +402,23 @@ def _validate_args(args: argparse.Namespace) -> None:
 def main(input_args: list[str] | None = None):
     setup_logging()
     args = _parse_command_line_args(input_args)
+    
+    # Apply config-dir default if not provided
+    if args.config_dir is None:
+        # Default: ../configs from slurm_runner directory
+        default_config_dir = pathlib.Path(__file__).parent.parent / "configs"
+        args.config_dir = str(default_config_dir)
+    
+    # Apply container-image from config if not provided
+    if args.container_image is None:
+        from cluster_config import get_cluster_setting
+        # Config file is in repo root (parent of slurm_runner/)
+        config_path = str(pathlib.Path(__file__).parent.parent / "srtslurm.yaml")
+        args.container_image = get_cluster_setting("container_image", None, config_path)
+        if args.container_image is None:
+            raise ValueError(
+                "Container image must be specified via --container-image or cluster.container_image in srtslurm.yaml"
+            )
 
     # Validate arguments
     _validate_args(args)
@@ -490,18 +511,18 @@ def main(input_args: list[str] | None = None):
     if args.log_dir:
         base_log_dir = pathlib.Path(args.log_dir)
         if not base_log_dir.is_absolute():
-            # Relative to slurm_jobs directory - use as-is in template
+            # Relative to slurm_runner directory - use as-is in template
             log_dir_prefix = args.log_dir
         else:
-            # Absolute path - compute relative from slurm_jobs/
-            slurm_jobs_dir = pathlib.Path(__file__).parent
+            # Absolute path - compute relative from slurm_runner/
+            slurm_runner_dir = pathlib.Path(__file__).parent
             try:
-                log_dir_prefix = str(base_log_dir.relative_to(slurm_jobs_dir))
+                log_dir_prefix = str(base_log_dir.relative_to(slurm_runner_dir))
             except ValueError:
-                # Not relative to slurm_jobs, use absolute
+                # Not relative to slurm_runner, use absolute
                 log_dir_prefix = str(base_log_dir)
     else:
-        # Default: repo root/logs (parent of slurm_jobs/)/logs = "../logs" from slurm_jobs/
+        # Default: repo root/logs (parent of slurm_runner/)/logs = "../logs" from slurm_runner/
         log_dir_prefix = "../logs"
 
     # Select template based on mode
@@ -538,7 +559,7 @@ def main(input_args: list[str] | None = None):
         "benchmark_arg": parsable_config,
         "timestamp": timestamp,
         "enable_config_dump": args.enable_config_dump,
-        "use_dynamo_whls": args.use_dynamo_whls,
+        "use_dynamo_whls": True,  # Always true when config-dir is set
         "log_dir_prefix": log_dir_prefix,
     }
 
@@ -567,10 +588,10 @@ def main(input_args: list[str] | None = None):
         if args.log_dir:
             base_log_dir = pathlib.Path(args.log_dir)
             if not base_log_dir.is_absolute():
-                # Relative to slurm_jobs directory
+                # Relative to slurm_runner directory
                 base_log_dir = pathlib.Path(__file__).parent / base_log_dir
         else:
-            # Default: repo root/logs (parent directory of slurm_jobs/ + logs)
+            # Default: repo root/logs (parent directory of slurm_runner/ + logs)
             base_log_dir = pathlib.Path(__file__).parent.parent / "logs"
         
         log_dir_path = base_log_dir / log_dir_name

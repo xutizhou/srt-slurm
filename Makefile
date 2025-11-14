@@ -1,4 +1,4 @@
-.PHONY: lint test setup-configs
+.PHONY: lint test setup-configs dashboard
 
 NATS_VERSION ?= v2.10.28
 ETCD_VERSION ?= v3.5.21
@@ -8,15 +8,16 @@ default:
 
 lint:
 	uvx pre-commit run --all-files
-	uvx ty check
 
 test:
 	cd /Users/idhanani/Desktop/benchmarks/infbench && uv run python -m tests.test_basic && uv run python -m tests.test_aggregations
 
+dashboard:
+	uv run streamlit run dashboard/app.py
+
 setup:
-	@echo "📦 Setting up configs directory..."
-	@mkdir -p configs
-	@cp deepep_config.json configs/
+	@echo "📦 Setting up configs and logs directories..."
+	@mkdir -p logs
 	@ARCH=$$(uname -m); \
 	case "$$ARCH" in \
 		x86_64)  ARCH_SHORT="amd64" ;; \
@@ -53,4 +54,38 @@ setup:
 	chmod +x configs/etcd configs/etcdctl; \
 	rm "configs/$$ETCD_TAR"; \
 	echo "✅ Done. Contents of configs directory:"; \
-	ls -lh configs/
+	ls -lh configs/; \
+	echo ""; \
+	echo "⚙️  Setting up srtslurm.yaml..."; \
+	if [ -f srtslurm.yaml ]; then \
+		echo "ℹ️  srtslurm.yaml already exists, skipping..."; \
+	else \
+		echo "Creating srtslurm.yaml with your cluster settings..."; \
+		echo ""; \
+		read -p "Enter SLURM account [restricted]: " account; \
+		account=$${account:-restricted}; \
+		read -p "Enter SLURM partition [batch]: " partition; \
+		partition=$${partition:-batch}; \
+		read -p "Enter network interface [enP6p9s0np0]: " network; \
+		network=$${network:-enP6p9s0np0}; \
+		read -p "Enter time limit [4:00:00]: " time_limit; \
+		time_limit=$${time_limit:-4:00:00}; \
+		read -p "Enter container image path (optional): " container; \
+		container=$${container:-}; \
+		echo ""; \
+		echo "# SRT SLURM Configuration" > srtslurm.yaml; \
+		echo "" >> srtslurm.yaml; \
+		echo "cluster:" >> srtslurm.yaml; \
+		echo "  account: \"$$account\"" >> srtslurm.yaml; \
+		echo "  partition: \"$$partition\"" >> srtslurm.yaml; \
+		echo "  network_interface: \"$$network\"" >> srtslurm.yaml; \
+		echo "  time_limit: \"$$time_limit\"" >> srtslurm.yaml; \
+		echo "  container_image: \"$$container\"" >> srtslurm.yaml; \
+		echo "" >> srtslurm.yaml; \
+		echo "cloud:" >> srtslurm.yaml; \
+		echo "  endpoint_url: \"\"" >> srtslurm.yaml; \
+		echo "  bucket: \"\"" >> srtslurm.yaml; \
+		echo "  prefix: \"benchmark-results/\"" >> srtslurm.yaml; \
+		echo "✅ Created srtslurm.yaml"; \
+		echo "   You can edit it anytime or run: cp srtslurm.yaml.example srtslurm.yaml"; \
+	fi

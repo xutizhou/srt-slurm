@@ -387,7 +387,9 @@ class NodeAnalyzer:
                     cached_token=(
                         int(row["cached_token"]) if pd.notna(row.get("cached_token")) else None
                     ),
-                    token_usage=row.get("token_usage") if pd.notna(row.get("token_usage")) else None,
+                    token_usage=row.get("token_usage")
+                    if pd.notna(row.get("token_usage"))
+                    else None,
                     running_req=(
                         int(row["running_req"]) if pd.notna(row.get("running_req")) else None
                     ),

@@ -312,7 +312,9 @@ def create_node_metric_graph(
                 trace_config["stackgroup"] = stackgroup
 
             trace_config["hovertemplate"] = (
-                f"<b>{label}</b><br>" + "Time: %{x:.1f}s<br>" + f"{y_label}: %{{y:.2f}}<extra></extra>"
+                f"<b>{label}</b><br>"
+                + "Time: %{x:.1f}s<br>"
+                + f"{y_label}: %{{y:.2f}}<extra></extra>"
             )
 
             fig.add_trace(go.Scatter(**trace_config))
