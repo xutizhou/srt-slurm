@@ -499,7 +499,11 @@ def main(input_args: list[str] | None = None):
     # validate benchmark configs
     if benchmark_config == {} or benchmark_config["type"] == "manual":
         parsable_config = ""
-        benchmark_config["type"] = "manual"
+        # Set type based on whether profiling is enabled
+        if args.sglang_torch_profiler:
+            benchmark_config["type"] = "torch-profiler"
+        else:
+            benchmark_config["type"] = "manual"
     elif benchmark_config["type"] == "sa-bench":
         parsable_config = ""
         need_keys = ["isl", "osl", "concurrencies", "req-rate"]
@@ -636,7 +640,7 @@ def main(input_args: list[str] | None = None):
         "enable_multiple_frontends": enable_multiple_frontends_final,
         "num_additional_frontends": num_additional_frontends_final,
         "use_init_location": args.use_init_location,
-        "do_benchmark": benchmark_config["type"] != "manual" if not args.sglang_torch_profiler else False,
+        "do_benchmark": benchmark_config["type"] not in ["manual", "torch-profiler"],
         "benchmark_type": benchmark_config["type"],
         "benchmark_arg": parsable_config,
         "timestamp": timestamp,

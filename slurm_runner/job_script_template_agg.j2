@@ -307,10 +307,6 @@ srun --nodes=1 --ntasks=1 $ENROOT_ARGS --jobid $SLURM_JOB_ID -w ${nodes[0]} --ou
 # Torch profiling mode for aggregated workers
 echo "Starting torch profiling on aggregated worker..."
 
-# Create marker file for dashboard to identify this as a profiling job
-touch ${LOG_DIR}/.profiling_job
-echo "profiling" > ${LOG_DIR}/.profiling_job
-
 # Get leader node for first aggregated worker
 AGG_LEADER_NODE=${nodes[${agg_leaders[0]}]}
 
