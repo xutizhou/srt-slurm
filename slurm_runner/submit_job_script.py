@@ -648,6 +648,14 @@ def main(input_args: list[str] | None = None):
         # Handle disaggregated profiling mode: submit 2 separate jobs (prefill + decode)
         # Use aggregated template for each job since they're standalone
         if args.sglang_torch_profiler and not is_aggregated:
+            # Determine base log directory first
+            if args.log_dir:
+                base_log_dir = pathlib.Path(args.log_dir)
+                if not base_log_dir.is_absolute():
+                    base_log_dir = pathlib.Path(__file__).parent / base_log_dir
+            else:
+                base_log_dir = pathlib.Path(__file__).parent.parent / "logs"
+
             # Submit prefill profiling job (use aggregated template)
             template_vars_prefill = template_vars.copy()
             template_vars_prefill["profiling_mode"] = "prefill"
@@ -663,6 +671,22 @@ def main(input_args: list[str] | None = None):
             prefill_job_id = submit_job(temp_path, args.extra_slurm_args)
             submitted_job_ids.append(prefill_job_id)
             logging.info(f"Submitted prefill profiling job: {prefill_job_id}")
+
+            # Create prefill log directory
+            prefill_log_dir_name = f"{prefill_job_id}_{prefill_workers}A_{timestamp}"
+            prefill_log_dir_path = base_log_dir / prefill_log_dir_name
+            os.makedirs(prefill_log_dir_path, exist_ok=True)
+
+            # Save prefill sbatch script
+            with open(os.path.join(prefill_log_dir_path, "sbatch_script.sh"), "w") as f:
+                f.write(rendered_script_prefill)
+            logging.info(f"Saved prefill sbatch script to {prefill_log_dir_path}/sbatch_script.sh")
+
+            # Save prefill metadata
+            prefill_metadata = create_job_metadata(prefill_job_id, timestamp, args, benchmark_config)
+            with open(os.path.join(prefill_log_dir_path, f"{prefill_job_id}.json"), "w") as f:
+                json.dump(prefill_metadata, f, indent=2)
+            logging.info(f"Saved prefill job metadata to {prefill_log_dir_path}/{prefill_job_id}.json")
 
             # Submit decode profiling job (use aggregated template)
             template_vars_decode = template_vars.copy()
@@ -680,9 +704,25 @@ def main(input_args: list[str] | None = None):
             submitted_job_ids.append(decode_job_id)
             logging.info(f"Submitted decode profiling job: {decode_job_id}")
 
-            # Store both scripts for later saving
-            rendered_script = f"# Prefill Job:\n{rendered_script_prefill}\n\n# Decode Job:\n{rendered_script_decode}"
-            job_id = prefill_job_id  # Use prefill job ID for log directory naming
+            # Create decode log directory
+            decode_log_dir_name = f"{decode_job_id}_{decode_workers}A_{timestamp}"
+            decode_log_dir_path = base_log_dir / decode_log_dir_name
+            os.makedirs(decode_log_dir_path, exist_ok=True)
+
+            # Save decode sbatch script
+            with open(os.path.join(decode_log_dir_path, "sbatch_script.sh"), "w") as f:
+                f.write(rendered_script_decode)
+            logging.info(f"Saved decode sbatch script to {decode_log_dir_path}/sbatch_script.sh")
+
+            # Save decode metadata
+            decode_metadata = create_job_metadata(decode_job_id, timestamp, args, benchmark_config)
+            with open(os.path.join(decode_log_dir_path, f"{decode_job_id}.json"), "w") as f:
+                json.dump(decode_metadata, f, indent=2)
+            logging.info(f"Saved decode job metadata to {decode_log_dir_path}/{decode_job_id}.json")
+
+            # Set log_dir_name for welcome message (use prefill)
+            log_dir_name = prefill_log_dir_name
+            log_dir_already_created = True
         else:
             # Normal mode or aggregated profiling mode: single job submission
             _, rendered_script = generate_job_script(
@@ -691,44 +731,47 @@ def main(input_args: list[str] | None = None):
 
             job_id = submit_job(temp_path, args.extra_slurm_args)
             submitted_job_ids.append(job_id)
+            log_dir_already_created = False
 
         # Create log directory with new naming format IMMEDIATELY after submission
         # SLURM will write log.out/log.err to this directory when job starts
-        if is_aggregated:
-            log_dir_name = f"{job_id}_{agg_workers}A_{timestamp}"
-        else:
-            log_dir_name = f"{job_id}_{prefill_workers}P_{decode_workers}D_{timestamp}"
-        
-        # Determine base log directory (default: repo root/logs)
-        if args.log_dir:
-            base_log_dir = pathlib.Path(args.log_dir)
-            if not base_log_dir.is_absolute():
-                # Relative to slurm_runner directory
-                base_log_dir = pathlib.Path(__file__).parent / base_log_dir
-        else:
-            # Default: repo root/logs (parent directory of slurm_runner/ + logs)
-            base_log_dir = pathlib.Path(__file__).parent.parent / "logs"
-        
-        log_dir_path = base_log_dir / log_dir_name
-        os.makedirs(log_dir_path, exist_ok=True)
+        # Skip if already created for disaggregated profiling
+        if not log_dir_already_created:
+            if is_aggregated:
+                log_dir_name = f"{job_id}_{agg_workers}A_{timestamp}"
+            else:
+                log_dir_name = f"{job_id}_{prefill_workers}P_{decode_workers}D_{timestamp}"
 
-        # Save rendered sbatch script
-        sbatch_script_path = os.path.join(log_dir_path, "sbatch_script.sh")
-        with open(sbatch_script_path, "w") as f:
-            f.write(rendered_script)
-        logging.info(f"Saved rendered sbatch script to {sbatch_script_path}")
+            # Determine base log directory (default: repo root/logs)
+            if args.log_dir:
+                base_log_dir = pathlib.Path(args.log_dir)
+                if not base_log_dir.is_absolute():
+                    # Relative to slurm_runner directory
+                    base_log_dir = pathlib.Path(__file__).parent / base_log_dir
+            else:
+                # Default: repo root/logs (parent directory of slurm_runner/ + logs)
+                base_log_dir = pathlib.Path(__file__).parent.parent / "logs"
 
-        # Create and save job metadata
-        metadata = create_job_metadata(
-            job_id=job_id,
-            timestamp=timestamp,
-            args=args,
-            benchmark_config=benchmark_config,
-        )
-        metadata_path = os.path.join(log_dir_path, f"{job_id}.json")
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
-        logging.info(f"Saved job metadata to {metadata_path}")
+            log_dir_path = base_log_dir / log_dir_name
+            os.makedirs(log_dir_path, exist_ok=True)
+
+            # Save rendered sbatch script
+            sbatch_script_path = os.path.join(log_dir_path, "sbatch_script.sh")
+            with open(sbatch_script_path, "w") as f:
+                f.write(rendered_script)
+            logging.info(f"Saved rendered sbatch script to {sbatch_script_path}")
+
+            # Create and save job metadata
+            metadata = create_job_metadata(
+                job_id=job_id,
+                timestamp=timestamp,
+                args=args,
+                benchmark_config=benchmark_config,
+            )
+            metadata_path = os.path.join(log_dir_path, f"{job_id}.json")
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+            logging.info(f"Saved job metadata to {metadata_path}")
 
         # retries logic
         if args.retries > 0:
