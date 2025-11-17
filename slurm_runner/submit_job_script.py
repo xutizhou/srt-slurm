@@ -602,6 +602,14 @@ def main(input_args: list[str] | None = None):
     else:
         template_path = "job_script_template_disagg.j2"
 
+    # For profiling, always enable multiple frontends with 1 additional frontend (2 total)
+    if args.sglang_torch_profiler:
+        enable_multiple_frontends_final = True
+        num_additional_frontends_final = 1
+    else:
+        enable_multiple_frontends_final = args.enable_multiple_frontends
+        num_additional_frontends_final = args.num_additional_frontends
+
     template_vars = {
         "job_name": args.job_name,
         "total_nodes": total_nodes,
@@ -622,8 +630,8 @@ def main(input_args: list[str] | None = None):
         "gpu_type": args.gpu_type,
         "script_variant": args.script_variant,
         "partition": args.partition,
-        "enable_multiple_frontends": args.enable_multiple_frontends,
-        "num_additional_frontends": args.num_additional_frontends,
+        "enable_multiple_frontends": enable_multiple_frontends_final,
+        "num_additional_frontends": num_additional_frontends_final,
         "use_init_location": args.use_init_location,
         "do_benchmark": benchmark_config["type"] != "manual" if not args.sglang_torch_profiler else False,
         "benchmark_type": benchmark_config["type"],
