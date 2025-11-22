@@ -254,7 +254,6 @@ class SGLangBackend(Backend):
         # Config directory should point to where deepep_config.json lives
         # This is typically the configs/ directory in the yaml-config repo
         yaml_config_root = Path(srtctl.__file__).parent.parent.parent
-        config_dir_path = yaml_config_root / "configs"
 
         # Log directory - check srtslurm.yaml first, then fall back to default
         srtctl_root_setting = get_srtslurm_setting("srtctl_root")
@@ -264,6 +263,8 @@ class SGLangBackend(Backend):
             # Fall back to default: current yaml-config directory (which contains scripts/)
             srtctl_root = yaml_config_root
 
+        # Use srtctl_root for config_dir_path so it respects srtslurm.yaml setting
+        config_dir_path = srtctl_root / "configs"
         log_dir_path = srtctl_root / "logs"
 
         # Template variables
