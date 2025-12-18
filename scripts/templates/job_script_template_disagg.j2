@@ -357,7 +357,10 @@ done
 PREFILL_IPS_STR=$(IFS=,; echo "${PREFILL_LEADER_IPS[*]}")
 DECODE_IPS_STR=$(IFS=,; echo "${DECODE_LEADER_IPS[*]}")
 
-# sglang-router architecture (mirrors dynamo frontend scaling)
+{% endraw %}
+{% if enable_multiple_frontends %}
+{% raw %}
+# Multiple router architecture (mirrors dynamo frontend scaling)
 # Node 0: nginx load balancer + first router
 # Node 1+: additional routers distributed across worker nodes
 
@@ -396,9 +399,11 @@ echo "Router hosts: ${router_hosts[@]}"
 echo "Router IPs: ${router_ips[@]}"
 
 # Generate nginx configuration for router load balancing
+# Routers use internal port 30080, nginx exposes on 8000
+ROUTER_INTERNAL_PORT=30080
 ROUTER_LIST=$(printf "'%s'," "${router_ips[@]}")
 ROUTER_LIST="[${ROUTER_LIST%,}]"
-export ROUTER_LIST SCRIPT_DIR LOG_DIR
+export ROUTER_LIST ROUTER_INTERNAL_PORT SCRIPT_DIR LOG_DIR
 python3 - <<'PY'
 import os
 from jinja2 import Template
@@ -410,7 +415,8 @@ with open(template_path, 'r') as f:
     tmpl = Template(f.read())
 
 router_hosts = eval(os.environ['ROUTER_LIST'])
-config = tmpl.render(frontend_hosts=router_hosts)
+backend_port = int(os.environ['ROUTER_INTERNAL_PORT'])
+config = tmpl.render(frontend_hosts=router_hosts, backend_port=backend_port)
 
 with open(output_path, 'w') as f:
     f.write(config)
@@ -423,8 +429,9 @@ echo "$cmd"
 $cmd &
 
 # Launch first router on node 0 (with nginx)
-echo "Launching sglang-router 0 on ${NGINX_NODE}"
-cmd="srun --overlap $ENROOT_ARGS --nodes=1 --ntasks=1 --nodelist=$NGINX_NODE --output=${LOG_DIR}/${NGINX_NODE}_router_0.out python /scripts/worker_setup.py --worker_type sglang-router --worker_idx 0 --prefill-ips ${PREFILL_IPS_STR} --decode-ips ${DECODE_IPS_STR} --router-port 8000 ${WORKER_ARGS}"
+# Router listens on internal port, nginx proxies from 8000
+echo "Launching sglang-router 0 on ${NGINX_NODE} (internal port ${ROUTER_INTERNAL_PORT})"
+cmd="srun --overlap $ENROOT_ARGS --nodes=1 --ntasks=1 --nodelist=$NGINX_NODE --output=${LOG_DIR}/${NGINX_NODE}_router_0.out python /scripts/worker_setup.py --worker_type sglang-router --worker_idx 0 --prefill-ips ${PREFILL_IPS_STR} --decode-ips ${DECODE_IPS_STR} --router-port ${ROUTER_INTERNAL_PORT} ${WORKER_ARGS}"
 echo "$cmd"
 $cmd &
 
@@ -437,8 +444,8 @@ if [ "$ADDITIONAL_ROUTERS" -gt 0 ]; then
     for i in $(seq 1 $ADDITIONAL_ROUTERS); do
         if [ $router_node_idx -lt $TOTAL_NODES ]; then
             node=${nodes[$router_node_idx]}
-            echo "Launching sglang-router $router_idx on node $router_node_idx: $node"
-            cmd="srun --overlap $ENROOT_ARGS --nodes=1 --ntasks=1 --nodelist=$node --output=${LOG_DIR}/${node}_router_${router_idx}.out python /scripts/worker_setup.py --worker_type sglang-router --worker_idx ${router_idx} --prefill-ips ${PREFILL_IPS_STR} --decode-ips ${DECODE_IPS_STR} --router-port 8000 ${WORKER_ARGS}"
+            echo "Launching sglang-router $router_idx on node $router_node_idx: $node (internal port ${ROUTER_INTERNAL_PORT})"
+            cmd="srun --overlap $ENROOT_ARGS --nodes=1 --ntasks=1 --nodelist=$node --output=${LOG_DIR}/${node}_router_${router_idx}.out python /scripts/worker_setup.py --worker_type sglang-router --worker_idx ${router_idx} --prefill-ips ${PREFILL_IPS_STR} --decode-ips ${DECODE_IPS_STR} --router-port ${ROUTER_INTERNAL_PORT} ${WORKER_ARGS}"
             echo "$cmd"
             $cmd &
             router_idx=$((router_idx + 1))
@@ -449,7 +456,20 @@ fi
 
 TOTAL_ROUTERS=$((1 + ADDITIONAL_ROUTERS))
 echo "Frontend available at: http://${NGINX_NODE}:8000 (nginx load balancing ${TOTAL_ROUTERS} sglang-routers)"
-{% endraw %}{% endif %}
+{% endraw %}
+{% else %}
+{% raw %}
+# Single router architecture - no nginx, router directly on node 0 port 8000
+ROUTER_NODE=${nodes[0]}
+echo "Launching single sglang-router on ${ROUTER_NODE} (port 8000)"
+cmd="srun --overlap $ENROOT_ARGS --nodes=1 --ntasks=1 --nodelist=$ROUTER_NODE --output=${LOG_DIR}/${ROUTER_NODE}_router.out python /scripts/worker_setup.py --worker_type sglang-router --worker_idx 0 --prefill-ips ${PREFILL_IPS_STR} --decode-ips ${DECODE_IPS_STR} --router-port 8000 ${WORKER_ARGS}"
+echo "$cmd"
+$cmd &
+
+echo "Frontend available at: http://${ROUTER_NODE}:8000"
+{% endraw %}
+{% endif %}
+{% endif %}
 {% raw %}
 
 echo ""
