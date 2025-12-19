@@ -165,6 +165,20 @@ class RuntimeContext:
             results_dir: Path("/results"),
         }
 
+        # Add configs directory (NATS, etcd binaries) from source root
+        # SRTCTL_SOURCE_DIR is set by the sbatch script
+        source_dir = os.environ.get("SRTCTL_SOURCE_DIR")
+        if source_dir:
+            configs_dir = Path(source_dir) / "configs"
+            if configs_dir.exists():
+                container_mounts[configs_dir.resolve()] = Path("/configs")
+
+        # Also add scripts directory for worker_setup.py
+        if source_dir:
+            scripts_dir = Path(source_dir) / "scripts"
+            if scripts_dir.exists():
+                container_mounts[scripts_dir.resolve()] = Path("/scripts")
+
         # Add extra mounts from config
         if config.extra_mount:
             for mount_spec in config.extra_mount:

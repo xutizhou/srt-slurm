@@ -67,6 +67,9 @@ pip install --quiet --target="${SRTCTL_INSTALL_DIR}" "{{ srtctl_source }}"
 
 export PYTHONPATH="${SRTCTL_INSTALL_DIR}:${PYTHONPATH}"
 
+# Export source directory so orchestrator can find configs/ (NATS, etcd binaries)
+export SRTCTL_SOURCE_DIR="{{ srtctl_source }}"
+
 echo "Running orchestrator on host (with srun access)..."
 echo ""
 

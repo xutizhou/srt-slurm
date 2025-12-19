@@ -15,6 +15,7 @@ import logging
 import shlex
 import socket
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -184,7 +185,7 @@ def wait_for_health(
     max_attempts: int = 60,
     interval: float = 10.0,
     expected_workers: Optional[int] = None,
-    stop_event: Optional["threading.Event"] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> bool:
     """Wait for HTTP health endpoint to return healthy status.
 
@@ -201,8 +202,6 @@ def wait_for_health(
     Returns:
         True if healthy, False if timeout or aborted
     """
-    import threading
-
     health_url = f"http://{host}:{port}/health"
     models_url = f"http://{host}:{port}/v1/models"
 
@@ -340,4 +339,33 @@ def run_command(
     else:
         result = subprocess.run(command, shell=True)
         return result.returncode
+
+
+# Re-export from scripts module (uses battle-tested bash)
+from srtctl.scripts import get_node_ip, get_local_ip, wait_for_model
+
+
+def get_node_ips(
+    nodes: List[str],
+    slurm_job_id: Optional[str] = None,
+    network_interface: Optional[str] = None,
+) -> Dict[str, str]:
+    """Get IP addresses for multiple SLURM nodes.
+
+    Args:
+        nodes: List of node hostnames
+        slurm_job_id: SLURM job ID for srun context
+        network_interface: Specific network interface to use
+
+    Returns:
+        Dict mapping node hostname to IP address
+    """
+    ips = {}
+    for node in nodes:
+        ip = get_node_ip(node, slurm_job_id, network_interface)
+        if ip:
+            ips[node] = ip
+        else:
+            logger.warning("Could not resolve IP for node %s", node)
+    return ips
 

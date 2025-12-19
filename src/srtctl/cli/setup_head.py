@@ -27,6 +27,64 @@ ETCD_LISTEN_ADDR = "http://0.0.0.0"
 logger = logging.getLogger(__name__)
 
 
+def get_local_ip() -> str:
+    """Get local IP address using multiple fallback methods.
+
+    Methods tried (in order):
+    1. hostname -I (gets first non-loopback IP)
+    2. ip route get 8.8.8.8 (finds default source IP)
+    3. socket.gethostbyname (fallback)
+    """
+    import socket
+    import subprocess
+
+    # Method 1: hostname -I
+    try:
+        result = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            ip = result.stdout.strip().split()[0]
+            if ip and not ip.startswith("127."):
+                return ip
+    except Exception:
+        pass
+
+    # Method 2: ip route get 8.8.8.8
+    try:
+        result = subprocess.run(
+            ["ip", "route", "get", "8.8.8.8"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            # Parse "8.8.8.8 via X.X.X.X dev ethX src Y.Y.Y.Y"
+            parts = result.stdout.split("src ")
+            if len(parts) > 1:
+                ip = parts[1].split()[0]
+                if ip and not ip.startswith("127."):
+                    return ip
+    except Exception:
+        pass
+
+    # Method 3: socket fallback
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        if ip and not ip.startswith("127."):
+            return ip
+    except socket.gaierror:
+        pass
+
+    # Last resort
+    logger.warning("Could not determine local IP, using 127.0.0.1")
+    return "127.0.0.1"
+
+
 def setup_logging():
     """Configure logging."""
     logging.basicConfig(
@@ -163,15 +221,8 @@ def main():
     log_dir = Path(args.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get our IP address
-    import socket
-
-    hostname = socket.gethostname()
-    try:
-        host_ip = socket.gethostbyname(hostname)
-    except socket.gaierror:
-        host_ip = "127.0.0.1"
-
+    # Get our IP address using multiple fallback methods
+    host_ip = get_local_ip()
     logger.info("Host IP: %s", host_ip)
 
     # Start services
