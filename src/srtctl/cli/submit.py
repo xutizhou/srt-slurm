@@ -180,15 +180,44 @@ def submit_with_orchestrator(
         shutil.copy(config_path, output_dir / "config.yaml")
         shutil.copy(script_path, output_dir / "sbatch_script.sh")
 
+        # Build comprehensive job metadata
         metadata = {
             "version": "2.0",
             "orchestrator": True,
             "job_id": job_id,
             "job_name": config.name,
             "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            # Model info
+            "model": {
+                "path": config.model.path,
+                "container": config.model.container,
+                "precision": config.model.precision,
+            },
+            # Resource allocation
+            "resources": {
+                "gpu_type": config.resources.gpu_type,
+                "gpus_per_node": config.resources.gpus_per_node,
+                "prefill_nodes": config.resources.prefill_nodes,
+                "decode_nodes": config.resources.decode_nodes,
+                "prefill_workers": config.resources.num_prefill,
+                "decode_workers": config.resources.num_decode,
+                "agg_workers": config.resources.num_agg,
+                "total_nodes": config.slurm.nodes,
+            },
+            # Backend and frontend
+            "backend_type": config.backend_type,
+            "use_sglang_router": config.frontend.use_sglang_router,
+            # Benchmark config
+            "benchmark": {
+                "type": config.benchmark.type,
+                "isl": config.benchmark.isl,
+                "osl": config.benchmark.osl,
+            },
         }
         if tags:
             metadata["tags"] = tags
+        if config.setup_script:
+            metadata["setup_script"] = config.setup_script
 
         with open(output_dir / f"{job_id}.json", "w") as f:
             json.dump(metadata, f, indent=2)

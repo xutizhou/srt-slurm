@@ -467,6 +467,10 @@ class SrtConfig:
     sbatch_directives: Dict[str, str] = field(default_factory=dict)
     enable_config_dump: bool = True
 
+    # Custom setup script (runs before dynamo install and worker startup)
+    # e.g. "custom-setup.sh" -> runs /configs/custom-setup.sh
+    setup_script: Optional[str] = None
+
     Schema: ClassVar[Type[Schema]] = Schema
 
     @classmethod

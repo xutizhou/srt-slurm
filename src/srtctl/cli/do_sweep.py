@@ -92,6 +92,36 @@ class SweepOrchestrator:
         """Compute physical process topology from endpoints (cached)."""
         return self.backend.endpoints_to_processes(self.endpoints)
 
+    def _build_worker_preamble(self) -> Optional[str]:
+        """Build bash preamble for worker processes.
+
+        Runs (in order):
+        1. Custom setup script from /configs/ (if config.setup_script set)
+        2. Dynamo installation (if not using sglang router)
+        """
+        parts = []
+
+        # 1. Custom setup script (runs first)
+        if self.config.setup_script:
+            script_path = f"/configs/{self.config.setup_script}"
+            parts.append(
+                f"echo 'Running setup script: {script_path}' && "
+                f"if [ -f '{script_path}' ]; then bash '{script_path}'; else echo 'WARNING: {script_path} not found'; fi"
+            )
+
+        # 2. Dynamo installation (required for dynamo.sglang when not using sglang router)
+        if not self.config.frontend.use_sglang_router:
+            parts.append(
+                "echo 'Installing dynamo...' && "
+                "pip install --quiet ai-dynamo-runtime==0.7.0 ai-dynamo==0.7.0 && "
+                "echo 'Dynamo installed'"
+            )
+
+        if not parts:
+            return None
+
+        return " && ".join(parts)
+
     def start_head_infrastructure(self, registry: ProcessRegistry) -> ManagedProcess:
         """Start NATS and etcd on the head node."""
         section("Starting head node infrastructure", ROCKET, logger)
@@ -182,14 +212,8 @@ class SweepOrchestrator:
         logger.info("Command: %s", shlex.join(cmd))
         logger.info("Log: %s", worker_log)
 
-        # Install dynamo when not using sglang router (required for dynamo.sglang module)
-        bash_preamble = None
-        if not self.config.frontend.use_sglang_router:
-            bash_preamble = (
-                "echo 'Installing dynamo...' && "
-                "pip install --quiet ai-dynamo-runtime==0.7.0 ai-dynamo==0.7.0 && "
-                "echo 'Dynamo installed'"
-            )
+        # Build bash preamble (setup script + dynamo install)
+        bash_preamble = self._build_worker_preamble()
 
         proc = start_srun_process(
             command=cmd,
@@ -250,12 +274,8 @@ class SweepOrchestrator:
             "NATS_SERVER": f"nats://{self.runtime.nodes.head}:4222",
         }
 
-        # Install dynamo before starting frontend
-        bash_preamble = (
-            "echo 'Installing dynamo...' && "
-            "pip install --quiet ai-dynamo-runtime==0.7.0 ai-dynamo==0.7.0 && "
-            "echo 'Dynamo installed'"
-        )
+        # Use the same preamble (setup script + dynamo install) as workers
+        bash_preamble = self._build_worker_preamble()
 
         proc = start_srun_process(
             command=cmd,

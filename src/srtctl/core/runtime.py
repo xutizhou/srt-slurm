@@ -131,25 +131,13 @@ class RuntimeContext:
         if log_dir_base is None:
             log_dir_base = Path.cwd() / "outputs"
 
-        # Determine worker counts for directory naming
-        if config.resources.is_disaggregated:
-            prefill_workers = config.resources.num_prefill or 1
-            decode_workers = config.resources.num_decode or 1
-            dir_suffix = f"{prefill_workers}P_{decode_workers}D"
-        elif config.resources.num_agg:
-            dir_suffix = f"{config.resources.num_agg}A"
-        else:
-            dir_suffix = "1P_1D"
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Check if config.output.log_dir is a FormattablePath with custom template
-        # For now, use default directory structure
-        log_dir = log_dir_base / job_id / f"{dir_suffix}_{timestamp}"
+        # Simple directory structure: outputs/{job_id}/logs/
+        # This matches the old format and keeps everything organized by job_id
+        log_dir = log_dir_base / job_id / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Results dir inside log_dir
-        results_dir = log_dir / "results"
+        # Results dir as sibling to logs
+        results_dir = log_dir_base / job_id / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
 
         # Resolve model path (expand env vars)
