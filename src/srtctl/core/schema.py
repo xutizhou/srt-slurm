@@ -37,8 +37,6 @@ from marshmallow_dataclass import dataclass
 from srtctl.backends.configs import (
     BackendConfig,
     SGLangBackendConfig,
-    TRTLLMBackendConfig,
-    VLLMBackendConfig,
 )
 from srtctl.core.formatting import (
     FormattablePath,
@@ -129,7 +127,7 @@ class BackendConfigField(fields.Field):
             # Default to SGLang
             return SGLangBackendConfig()
 
-        if isinstance(value, (SGLangBackendConfig, VLLMBackendConfig, TRTLLMBackendConfig)):
+        if isinstance(value, (SGLangBackendConfig)):
             return value
 
         if not isinstance(value, dict):
@@ -141,16 +139,10 @@ class BackendConfigField(fields.Field):
         if backend_type == "sglang":
             schema = SGLangBackendConfig.Schema()
             return schema.load(value)
-        elif backend_type == "vllm":
-            schema = VLLMBackendConfig.Schema()
-            return schema.load(value)
-        elif backend_type == "trtllm":
-            schema = TRTLLMBackendConfig.Schema()
-            return schema.load(value)
         else:
             raise ValidationError(
                 f"Unknown backend type: {backend_type!r}. "
-                f"Supported types: sglang, vllm, trtllm"
+                f"Supported types: sglang"
             )
 
     def _serialize(
@@ -161,10 +153,6 @@ class BackendConfigField(fields.Field):
             return None
         if isinstance(value, SGLangBackendConfig):
             return SGLangBackendConfig.Schema().dump(value)
-        if isinstance(value, VLLMBackendConfig):
-            return VLLMBackendConfig.Schema().dump(value)
-        if isinstance(value, TRTLLMBackendConfig):
-            return TRTLLMBackendConfig.Schema().dump(value)
         return value
 
 
@@ -439,8 +427,6 @@ class SrtConfig:
 
     The backend field supports polymorphic deserialization:
     - type: sglang -> SGLangBackendConfig
-    - type: vllm -> VLLMBackendConfig
-    - type: trtllm -> TRTLLMBackendConfig
     """
 
     name: str

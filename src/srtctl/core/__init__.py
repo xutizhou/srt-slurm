@@ -42,8 +42,6 @@ from .runtime import Nodes, RuntimeContext, get_slurm_job_id, get_hostname_ip
 from srtctl.backends.configs import (
     SGLangBackendConfig,
     SGLangConfig,
-    VLLMBackendConfig,
-    TRTLLMBackendConfig,
     BackendConfig,
     BackendProtocol,
     BackendType,
@@ -67,8 +65,6 @@ __all__ = [
     # Backend configs (re-exported from backends.configs)
     "SGLangBackendConfig",
     "SGLangConfig",
-    "VLLMBackendConfig",
-    "TRTLLMBackendConfig",
     "BackendConfig",
     "BackendProtocol",
     "BackendType",

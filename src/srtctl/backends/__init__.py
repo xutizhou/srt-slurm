@@ -18,8 +18,6 @@ from .configs import (
     BackendType,
     SGLangBackendConfig,
     SGLangConfig,
-    TRTLLMBackendConfig,
-    VLLMBackendConfig,
 )
 
 __all__ = [
@@ -30,8 +28,4 @@ __all__ = [
     # SGLang
     "SGLangBackendConfig",
     "SGLangConfig",
-    # vLLM
-    "VLLMBackendConfig",
-    # TRT-LLM
-    "TRTLLMBackendConfig",
 ]

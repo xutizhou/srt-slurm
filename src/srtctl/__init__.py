@@ -63,8 +63,6 @@ from .backends.configs import (
     BackendConfig,
     BackendType,
     SGLangBackendConfig,
-    VLLMBackendConfig,
-    TRTLLMBackendConfig,
 )
 
 __all__ = [
@@ -113,6 +111,4 @@ __all__ = [
     "BackendConfig",
     "BackendType",
     "SGLangBackendConfig",
-    "VLLMBackendConfig",
-    "TRTLLMBackendConfig",
 ]
