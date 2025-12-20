@@ -14,6 +14,7 @@ This script is called from within the sbatch job and coordinates:
 
 import argparse
 import functools
+import logging
 import shlex
 import sys
 import threading
@@ -37,17 +38,9 @@ from srtctl.core.process_registry import (
 from srtctl.core.runtime import RuntimeContext, get_hostname_ip, get_slurm_job_id
 from srtctl.core.schema import SrtConfig
 from srtctl.core.utils import start_srun_process, wait_for_health, wait_for_port
-from srtctl.logging_utils import (
-    CHECK,
-    PACKAGE,
-    ROCKET,
-    WRENCH,
-    get_logger,
-    section,
-    setup_logging,
-)
+from srtctl.logging_utils import setup_logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -125,7 +118,7 @@ class SweepOrchestrator:
 
     def start_head_infrastructure(self, registry: ProcessRegistry) -> ManagedProcess:
         """Start NATS and etcd on the head node."""
-        section("Starting head node infrastructure", ROCKET, logger)
+        logger.info("Starting head node infrastructure")
         logger.info("Head node: %s", self.runtime.nodes.head)
 
         setup_script = Path(__file__).parent / "setup_head.py"
@@ -166,12 +159,12 @@ class SweepOrchestrator:
         logger.info("Waiting for NATS (port 4222)...")
         if not wait_for_port(self.runtime.nodes.head, 4222, timeout=60):
             raise RuntimeError("NATS failed to start")
-        logger.info("%s NATS is ready", CHECK)
+        logger.info("NATS is ready")
 
         logger.info("Waiting for etcd (port 2379)...")
         if not wait_for_port(self.runtime.nodes.head, 2379, timeout=60):
             raise RuntimeError("etcd failed to start")
-        logger.info("%s etcd is ready", CHECK)
+        logger.info("etcd is ready")
 
         return managed
 
@@ -180,7 +173,7 @@ class SweepOrchestrator:
         mode = process.endpoint_mode
         index = process.endpoint_index
 
-        section(f"Starting {mode} worker {index} on {process.node}", WRENCH, logger)
+        logger.info("Starting %s worker %d on %s", mode, index, process.node)
 
         # Log and config files
         worker_log = self.runtime.log_dir / f"{process.node}_{mode}_w{index}.out"
@@ -258,7 +251,7 @@ class SweepOrchestrator:
 
     def start_all_workers(self) -> NamedProcesses:
         """Start all backend workers."""
-        section("Starting backend workers", PACKAGE, logger)
+        logger.info("Starting backend workers")
 
         from collections import defaultdict
 
@@ -278,7 +271,7 @@ class SweepOrchestrator:
 
     def start_frontend(self, registry: ProcessRegistry) -> ManagedProcess | None:
         """Start the frontend."""
-        section("Starting frontend", PACKAGE, logger)
+        logger.info("Starting frontend")
 
         if self.config.frontend.use_sglang_router:
             return self._start_sglang_router()
@@ -368,7 +361,7 @@ class SweepOrchestrator:
 
     def run_benchmark(self, registry: ProcessRegistry, stop_event: threading.Event) -> int:
         """Run the benchmark."""
-        section("Running benchmark", ROCKET, logger)
+        logger.info("Running benchmark")
 
         r = self.config.resources
         num_workers = r.num_prefill + r.num_decode + r.num_agg
@@ -467,7 +460,7 @@ class SweepOrchestrator:
 
     def run(self) -> int:
         """Run the complete sweep."""
-        section("Sweep Orchestrator", ROCKET, logger)
+        logger.info("Sweep Orchestrator")
         logger.info("Job ID: %s", self.runtime.job_id)
         logger.info("Run name: %s", self.runtime.run_name)
         logger.info("Config: %s", self.config.name)
@@ -507,7 +500,7 @@ class SweepOrchestrator:
             exit_code = 1
 
         finally:
-            section("Cleanup", PACKAGE, logger)
+            logger.info("Cleanup")
             stop_event.set()
             registry.cleanup()
             if exit_code != 0:

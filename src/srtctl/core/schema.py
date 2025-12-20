@@ -13,6 +13,7 @@ Backend configs are defined in srtctl.backends.configs/ for modularity.
 
 import builtins
 import itertools
+import logging
 from collections.abc import Iterator, Mapping
 from dataclasses import field
 from enum import Enum
@@ -37,12 +38,10 @@ from srtctl.core.formatting import (
     FormattablePath,
     FormattablePathField,
 )
-from srtctl.logging_utils import get_logger
-
 if TYPE_CHECKING:
     pass
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================

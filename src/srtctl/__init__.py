@@ -16,7 +16,7 @@ Key modules:
 - backends.configs: Backend-specific configuration dataclasses
 - cli.submit: Job submission interface
 - cli.do_sweep: Main orchestration script
-- logging_utils: Consistent logging and emoji helpers
+- logging_utils: Logging configuration
 
 Usage:
     # Submit with orchestrator (Python-controlled)
@@ -45,45 +45,13 @@ from .core.process_registry import (
 )
 from .core.runtime import Nodes, RuntimeContext, get_hostname_ip, get_slurm_job_id
 from .core.schema import SrtConfig
-from .logging_utils import (
-    CHECK,
-    CROSS,
-    GEAR,
-    HOURGLASS,
-    PACKAGE,
-    ROCKET,
-    WARN,
-    WRENCH,
-    error,
-    get_logger,
-    section,
-    setup_logging,
-    step,
-    success,
-    waiting,
-    warn,
-)
+from .logging_utils import setup_logging
 
 __all__ = [
     # Version
     "__version__",
     # Logging
-    "CHECK",
-    "CROSS",
-    "GEAR",
-    "HOURGLASS",
-    "PACKAGE",
-    "ROCKET",
-    "WARN",
-    "WRENCH",
-    "get_logger",
-    "section",
     "setup_logging",
-    "step",
-    "success",
-    "error",
-    "warn",
-    "waiting",
     # Config
     "load_config",
     "get_srtslurm_setting",
