@@ -84,7 +84,6 @@ class RuntimeContext:
 
     # Computed paths (all absolute)
     log_dir: Path
-    results_dir: Path
     model_path: Path
     container_image: Path
 
@@ -100,6 +99,9 @@ class RuntimeContext:
 
     # Environment variables
     environment: dict[str, str] = field(default_factory=dict)
+
+    # Frontend port (for benchmark endpoint)
+    frontend_port: int = 8000
 
     @classmethod
     def from_config(
@@ -135,10 +137,6 @@ class RuntimeContext:
         log_dir = log_dir_base / job_id / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Results dir as sibling to logs
-        results_dir = log_dir_base / job_id / "results"
-        results_dir.mkdir(parents=True, exist_ok=True)
-
         # Resolve model path (expand env vars)
         model_path = Path(os.path.expandvars(config.model.path)).resolve()
 
@@ -149,7 +147,6 @@ class RuntimeContext:
         container_mounts: dict[Path, Path] = {
             model_path: Path("/model"),
             log_dir: Path("/logs"),
-            results_dir: Path("/results"),
         }
 
         # Add configs directory (NATS, etcd binaries) from source root
@@ -166,6 +163,12 @@ class RuntimeContext:
             if scripts_dir.exists():
                 container_mounts[scripts_dir.resolve()] = Path("/scripts")
 
+        # Mount srtctl benchmark scripts
+        from srtctl.benchmarks.base import SCRIPTS_DIR
+
+        if SCRIPTS_DIR.exists():
+            container_mounts[SCRIPTS_DIR.resolve()] = Path("/srtctl-benchmarks")
+
         # Add extra mounts from config
         if config.extra_mount:
             for mount_spec in config.extra_mount:
@@ -181,7 +184,6 @@ class RuntimeContext:
             nodes=nodes,
             head_node_ip=head_node_ip,
             log_dir=log_dir,
-            results_dir=results_dir,
             model_path=model_path,
             container_image=container_image,
             gpus_per_node=config.resources.gpus_per_node,
@@ -205,7 +207,6 @@ class RuntimeContext:
             nodes=nodes,
             head_node_ip=head_node_ip,
             log_dir=log_dir,
-            results_dir=results_dir,
             model_path=model_path,
             container_image=container_image,
             gpus_per_node=config.resources.gpus_per_node,
@@ -226,7 +227,7 @@ class RuntimeContext:
         """Format a template string with runtime values.
 
         Available placeholders:
-            {job_id}, {run_name}, {head_node_ip}, {log_dir}, {results_dir},
+            {job_id}, {run_name}, {head_node_ip}, {log_dir},
             {model_path}, {container_image}, plus any extra_kwargs.
         """
         format_dict = {
@@ -234,7 +235,6 @@ class RuntimeContext:
             "run_name": self.run_name,
             "head_node_ip": self.head_node_ip,
             "log_dir": str(self.log_dir),
-            "results_dir": str(self.results_dir),
             "model_path": str(self.model_path),
             "container_image": str(self.container_image),
             "gpus_per_node": self.gpus_per_node,

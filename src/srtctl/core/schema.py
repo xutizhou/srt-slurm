@@ -303,6 +303,16 @@ class ResourceConfig:
             return (self.agg_nodes * self.gpus_per_node) // self.agg_workers
         return self.gpus_per_node
 
+    @property
+    def prefill_gpus(self) -> int:
+        """Total GPUs used by all prefill workers."""
+        return (self.prefill_nodes or 0) * self.gpus_per_node
+
+    @property
+    def decode_gpus(self) -> int:
+        """Total GPUs used by all decode workers."""
+        return (self.decode_nodes or 0) * self.gpus_per_node
+
     Schema: ClassVar[type[Schema]] = Schema
 
 
@@ -327,12 +337,17 @@ class BenchmarkConfig:
     concurrencies: list[int] | str | None = None
     req_rate: str | None = "inf"
     sweep: Annotated[SweepConfig, SweepConfigField()] | None = None
+    # Accuracy benchmark fields
     num_examples: int | None = None
     max_tokens: int | None = None
     repeat: int | None = None
     num_threads: int | None = None
     max_context_length: int | None = None
     categories: list[str] | None = None
+    # Router benchmark fields
+    num_requests: int | None = None
+    concurrency: int | None = None
+    prefix_ratios: list[float] | str | None = None
 
     def get_concurrency_list(self) -> list[int]:
         if self.concurrencies is None:
@@ -473,7 +488,6 @@ class OutputConfig:
     log_dir: Annotated[FormattablePath, FormattablePathField()] = field(
         default_factory=lambda: FormattablePath(template="./outputs/{job_id}/logs")
     )
-    results_dir: Annotated[FormattablePath, FormattablePathField()] | None = None
 
     Schema: ClassVar[type[Schema]] = Schema
 

@@ -41,6 +41,8 @@ dev = [
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+# Exclude external benchmark scripts (from vLLM/other sources)
+exclude = ["src/srtctl/benchmarks/scripts/*"]
 
 [tool.ruff.lint]
 extend-select = [

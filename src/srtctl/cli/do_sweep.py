@@ -20,6 +20,10 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from srtctl.benchmarks.base import BenchmarkRunner
 
 from srtctl.core.config import load_config
 from srtctl.core.endpoints import Endpoint, Process
@@ -220,6 +224,9 @@ class SweepOrchestrator:
         if len(process.gpu_indices) < self.runtime.gpus_per_node:
             env_to_set["CUDA_VISIBLE_DEVICES"] = process.cuda_visible_devices
 
+        # Log env vars in the format: VAR=value VAR2=value2
+        env_str = " ".join(f"{k}={v}" for k, v in sorted(env_to_set.items()))
+        logger.info("Env: %s", env_str)
         logger.info("Command: %s", shlex.join(cmd))
         logger.info("Log: %s", worker_log)
         if profiling.enabled:
@@ -362,7 +369,10 @@ class SweepOrchestrator:
         r = self.config.resources
         num_workers = r.num_prefill + r.num_decode + r.num_agg
 
-        logger.info("Waiting for server health (expecting %d workers)...", num_workers)
+        # Build descriptive worker count string
+        worker_desc = f"{r.num_agg} agg" if r.num_agg > 0 else f"{r.num_prefill}P + {r.num_decode}D"
+
+        logger.info("Waiting for server health (expecting %d workers: %s)...", num_workers, worker_desc)
 
         hc = self.config.health_check
         if not wait_for_health(
@@ -390,10 +400,66 @@ class SweepOrchestrator:
                 time.sleep(5)
             return 0
 
-        logger.info("Benchmark type '%s' - running benchmark", self.config.benchmark.type)
-        # TODO: Implement actual benchmark running for sa-bench, etc.
-        time.sleep(10)
-        return 0
+        # Get the appropriate benchmark runner
+        from srtctl.benchmarks import get_runner
+
+        try:
+            runner = get_runner(self.config.benchmark.type)
+        except ValueError as e:
+            logger.error("%s", e)
+            return 1
+
+        # Validate config
+        errors = runner.validate_config(self.config)
+        if errors:
+            for error in errors:
+                logger.error("Config error: %s", error)
+            return 1
+
+        logger.info("Running %s benchmark", runner.name)
+
+        # Run the benchmark script
+        benchmark_log = self.runtime.log_dir / "benchmark.out"
+        exit_code = self._run_benchmark_script(runner, benchmark_log, stop_event)
+
+        if exit_code != 0:
+            logger.error("Benchmark failed with exit code %d", exit_code)
+        else:
+            logger.info("Benchmark completed successfully")
+
+        return exit_code
+
+    def _run_benchmark_script(
+        self,
+        runner: "BenchmarkRunner",
+        log_file: Path,
+        stop_event: threading.Event,
+    ) -> int:
+        """Run the actual benchmark script."""
+
+        cmd = runner.build_command(self.config, self.runtime)
+
+        logger.info("Script: %s", runner.script_path)
+        logger.info("Command: %s", shlex.join(cmd))
+        logger.info("Log: %s", log_file)
+
+        proc = start_srun_process(
+            command=cmd,
+            nodelist=[self.runtime.nodes.head],
+            output=str(log_file),
+            container_image=str(self.runtime.container_image),
+            container_mounts=self.runtime.container_mounts,
+        )
+
+        # Wait for benchmark to complete
+        while proc.poll() is None:
+            if stop_event.is_set():
+                logger.info("Stop requested, terminating benchmark")
+                proc.terminate()
+                return 1
+            time.sleep(1)
+
+        return proc.returncode or 0
 
     def run(self) -> int:
         """Run the complete sweep."""
