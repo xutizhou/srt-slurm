@@ -38,6 +38,7 @@ from srtctl.core.formatting import (
     FormattablePath,
     FormattablePathField,
 )
+
 if TYPE_CHECKING:
     pass
 
