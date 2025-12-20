@@ -45,7 +45,7 @@ def get_node_ip(
     # Build bash command that sources the script and calls the function
     bash_cmd = f"""
         source "{slurm_utils}"
-        get_node_ip "{node}" "{slurm_job_id or ''}" "{network_interface or ''}"
+        get_node_ip "{node}" "{slurm_job_id or ""}" "{network_interface or ""}"
     """
 
     try:
@@ -95,7 +95,11 @@ def get_local_ip(network_interface: str | None = None) -> str:
     if network_interface:
         try:
             result = subprocess.run(
-                ["bash", "-c", f"ip addr show {network_interface} 2>/dev/null | grep 'inet ' | awk '{{print $2}}' | cut -d'/' -f1"],
+                [
+                    "bash",
+                    "-c",
+                    f"ip addr show {network_interface} 2>/dev/null | grep 'inet ' | awk '{{print $2}}' | cut -d'/' -f1",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -183,7 +187,7 @@ def wait_for_model(
         )
 
         if result.returncode == 0:
-            logger.info("Model is ready: %s", result.stdout.strip().split('\n')[-1])
+            logger.info("Model is ready: %s", result.stdout.strip().split("\n")[-1])
             return True
         else:
             logger.error("Model failed to become ready: %s", result.stderr or result.stdout)
@@ -195,4 +199,3 @@ def wait_for_model(
     except Exception as e:
         logger.error("Error waiting for model: %s", e)
         return False
-

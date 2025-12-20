@@ -102,10 +102,7 @@ def start_srun_process(
         srun_cmd.append("--no-container-mount-home")
 
         if container_mounts:
-            mount_str = ",".join(
-                f"{host}:{container}"
-                for host, container in container_mounts.items()
-            )
+            mount_str = ",".join(f"{host}:{container}" for host, container in container_mounts.items())
             srun_cmd.extend(["--container-mounts", mount_str])
 
     # Additional srun options
@@ -366,4 +363,3 @@ def get_node_ips(
         else:
             logger.warning("Could not resolve IP for node %s", node)
     return ips
-

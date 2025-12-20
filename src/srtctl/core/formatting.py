@@ -152,9 +152,7 @@ class FormattablePath:
         # Format using runtime context
         formatted = runtime.format_string(self.template, **extra_kwargs)
         replaced = dataclasses.replace(self, template=formatted)
-        return replaced.raw_path_no_context(
-            make_absolute=make_absolute, ensure_exists=ensure_exists
-        )
+        return replaced.raw_path_no_context(make_absolute=make_absolute, ensure_exists=ensure_exists)
 
     def __str__(self) -> str:
         logger.error("FormattablePath cannot be directly converted to a string")
@@ -183,9 +181,7 @@ class FormattablePathField(fields.Field):
         super().__init__(**kwargs)
         self.allow_none = allow_none
 
-    def _serialize(
-        self, value: Any | None, attr: str | None, obj: Any, **kwargs
-    ) -> Any:
+    def _serialize(self, value: Any | None, attr: str | None, obj: Any, **kwargs) -> Any:
         if value is None:
             return None
         if isinstance(value, FormattablePath):
@@ -217,9 +213,7 @@ class FormattableStringField(fields.Field):
         super().__init__(**kwargs)
         self.allow_none = allow_none
 
-    def _serialize(
-        self, value: Any | None, attr: str | None, obj: Any, **kwargs
-    ) -> Any:
+    def _serialize(self, value: Any | None, attr: str | None, obj: Any, **kwargs) -> Any:
         if value is None:
             return None
         if isinstance(value, FormattableString):
@@ -242,4 +236,3 @@ class FormattableStringField(fields.Field):
         if isinstance(value, str):
             return FormattableString(template=value)
         raise self.make_error("invalid")
-

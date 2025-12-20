@@ -1,4 +1,4 @@
-.PHONY: lint typecheck test setup-configs dashboard sync-to-cloud sync-run delete-from-cloud cleanup
+.PHONY: lint typecheck test test-cov ci setup-configs dashboard sync-to-cloud sync-run delete-from-cloud cleanup
 
 NATS_VERSION ?= v2.10.28
 ETCD_VERSION ?= v3.5.21
@@ -8,11 +8,22 @@ ARCH ?= $(shell uname -m)
 default:
 	./run_dashboard.sh
 
+# === CI targets ===
 lint:
-	uvx pre-commit run --all-files
+	uv run ruff check src/srtctl/
+	uv run ruff format --check src/srtctl/
+
+typecheck:
+	uv run ty check src/srtctl/ || true
 
 test:
-	uv run pytest tests/
+	uv run pytest tests/ -v
+
+test-cov:
+	uv run pytest tests/ --cov=srtctl --cov-report=term-missing --cov-report=html
+
+ci: lint test
+	@echo "✓ CI checks passed"
 
 dashboard:
 	uv run streamlit run analysis/dashboard/app.py

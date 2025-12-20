@@ -136,9 +136,12 @@ class SweepOrchestrator:
         infra_log = self.runtime.log_dir / "log.out"
 
         cmd = [
-            "python3", str(setup_script_container),
-            "--name", self.config.name,
-            "--log-dir", str(self.runtime.log_dir),
+            "python3",
+            str(setup_script_container),
+            "--name",
+            self.config.name,
+            "--log-dir",
+            str(self.runtime.log_dir),
         ]
 
         mounts = dict(self.runtime.container_mounts)
@@ -258,6 +261,7 @@ class SweepOrchestrator:
         section("Starting backend workers", PACKAGE, logger)
 
         from collections import defaultdict
+
         grouped: dict[tuple, list[Process]] = defaultdict(list)
         for process in self.backend_processes:
             key = (process.endpoint_mode, process.endpoint_index)
@@ -470,11 +474,13 @@ class SweepOrchestrator:
         logger.info("Head node: %s", self.runtime.nodes.head)
         logger.info("Worker nodes: %s", ", ".join(self.runtime.nodes.worker))
         if self.config.profiling.enabled:
-            logger.info("Profiling: %s (isl=%s, osl=%s, concurrency=%s)",
-                       self.config.profiling.type,
-                       self.config.profiling.isl,
-                       self.config.profiling.osl,
-                       self.config.profiling.concurrency)
+            logger.info(
+                "Profiling: %s (isl=%s, osl=%s, concurrency=%s)",
+                self.config.profiling.type,
+                self.config.profiling.isl,
+                self.config.profiling.osl,
+                self.config.profiling.concurrency,
+            )
 
         registry = ProcessRegistry(job_id=self.runtime.job_id)
         stop_event = threading.Event()

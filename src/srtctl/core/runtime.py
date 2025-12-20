@@ -47,9 +47,7 @@ class Nodes:
 
         if benchmark_on_separate_node:
             if len(nodelist) < 2:
-                raise ValueError(
-                    "benchmark_on_separate_node requires at least 2 nodes"
-                )
+                raise ValueError("benchmark_on_separate_node requires at least 2 nodes")
             bench = nodelist[0]
             head = nodelist[1]
             worker = tuple(nodelist[1:])
@@ -196,9 +194,7 @@ class RuntimeContext:
         # Expand FormattablePath mounts
         for host_template, container_template in config.container_mounts.items():
             host_path = host_template.get_path(temp_context, ensure_exists=False)
-            container_path = container_template.get_path(
-                temp_context, make_absolute=False, ensure_exists=False
-            )
+            container_path = container_template.get_path(temp_context, make_absolute=False, ensure_exists=False)
             container_mounts[host_path] = container_path
 
         return cls(
@@ -247,8 +243,7 @@ class RuntimeContext:
             missing_key = str(e).strip("'\"")
             available_keys = sorted(set(format_dict.keys()))
             raise KeyError(
-                f"Missing placeholder '{missing_key}' in template. "
-                f"Available placeholders: {', '.join(available_keys)}."
+                f"Missing placeholder '{missing_key}' in template. Available placeholders: {', '.join(available_keys)}."
             ) from e
         return os.path.expandvars(formatted)
 

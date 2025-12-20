@@ -135,14 +135,9 @@ class BackendConfigField(fields.Field):
             schema = SGLangBackendConfig.Schema()
             return schema.load(value)
         else:
-            raise ValidationError(
-                f"Unknown backend type: {backend_type!r}. "
-                f"Supported types: sglang"
-            )
+            raise ValidationError(f"Unknown backend type: {backend_type!r}. Supported types: sglang")
 
-    def _serialize(
-        self, value: Any | None, attr: str | None, obj: Any, **kwargs
-    ) -> Any:
+    def _serialize(self, value: Any | None, attr: str | None, obj: Any, **kwargs) -> Any:
         """Serialize backend config to dict."""
         if value is None:
             return None
@@ -154,9 +149,7 @@ class BackendConfigField(fields.Field):
 class SweepConfigField(fields.Field):
     """Marshmallow field for SweepConfig."""
 
-    def _deserialize(
-        self, value: Any, attr: str | None, data: Mapping[str, Any] | None, **kwargs
-    ) -> Any:
+    def _deserialize(self, value: Any, attr: str | None, data: Mapping[str, Any] | None, **kwargs) -> Any:
         if value is None:
             return None
         if isinstance(value, SweepConfig):
@@ -182,9 +175,7 @@ class SweepConfigField(fields.Field):
 
         return SweepConfig(mode=mode, parameters=parameters)
 
-    def _serialize(
-        self, value: Any | None, attr: str | None, obj: Any, **kwargs
-    ) -> Any:
+    def _serialize(self, value: Any | None, attr: str | None, obj: Any, **kwargs) -> Any:
         if value is None:
             return None
         if isinstance(value, SweepConfig):
@@ -335,7 +326,7 @@ class BenchmarkConfig:
     isl: int | None = None
     osl: int | None = None
     concurrencies: list[int] | str | None = None
-    req_rate: str | None = "inf"
+    req_rate: str | int | None = "inf"
     sweep: Annotated[SweepConfig, SweepConfigField()] | None = None
     # Accuracy benchmark fields
     num_examples: int | None = None
@@ -522,9 +513,7 @@ class SrtConfig:
     resources: ResourceConfig
 
     slurm: SlurmConfig = field(default_factory=SlurmConfig)
-    backend: Annotated[BackendConfig, BackendConfigField()] = field(
-        default_factory=SGLangBackendConfig
-    )
+    backend: Annotated[BackendConfig, BackendConfigField()] = field(default_factory=SGLangBackendConfig)
     frontend: FrontendConfig = field(default_factory=FrontendConfig)
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
     profiling: ProfilingConfig = field(default_factory=ProfilingConfig)

@@ -104,9 +104,7 @@ class ProcessRegistry:
         """
         with self._lock:
             if process.name in self._processes:
-                logger.warning(
-                    "Replacing existing process '%s' in registry", process.name
-                )
+                logger.warning("Replacing existing process '%s' in registry", process.name)
             self._processes[process.name] = process
             logger.debug("Registered process: %s (pid=%d)", process.name, process.popen.pid)
 
@@ -268,4 +266,3 @@ def start_process_monitor(
     )
     thread.start()
     return thread
-

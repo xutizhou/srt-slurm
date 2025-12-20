@@ -66,9 +66,7 @@ def load_cluster_config() -> dict[str, Any] | None:
         return None
 
 
-def resolve_config_with_defaults(
-    user_config: dict[str, Any], cluster_config: dict[str, Any] | None
-) -> dict[str, Any]:
+def resolve_config_with_defaults(user_config: dict[str, Any], cluster_config: dict[str, Any] | None) -> dict[str, Any]:
     """
     Resolve user config by applying cluster defaults and aliases.
 

@@ -49,10 +49,15 @@ def build_sglang_command(
     python_module = "sglang.launch_server" if use_sglang_router else "dynamo.sglang"
 
     cmd = [
-        "python3", "-m", python_module,
-        "--model-path", str(model_path),
-        "--served-model-name", served_model_name,
-        "--host", "0.0.0.0",
+        "python3",
+        "-m",
+        python_module,
+        "--model-path",
+        str(model_path),
+        "--served-model-name",
+        served_model_name,
+        "--host",
+        "0.0.0.0",
     ]
 
     # Add disaggregation mode
@@ -61,11 +66,16 @@ def build_sglang_command(
 
     # Add multi-node flags
     if num_nodes > 1:
-        cmd.extend([
-            "--dist-init-addr", f"{leader_ip}:{dist_init_port}",
-            "--nnodes", str(num_nodes),
-            "--node-rank", str(node_rank),
-        ])
+        cmd.extend(
+            [
+                "--dist-init-addr",
+                f"{leader_ip}:{dist_init_port}",
+                "--nnodes",
+                str(num_nodes),
+                "--node-rank",
+                str(node_rank),
+            ]
+        )
 
     # Add dump config
     if dump_config_path and not use_sglang_router:

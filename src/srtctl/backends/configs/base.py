@@ -79,4 +79,3 @@ class BackendProtocol(Protocol):
     ) -> list[str]:
         """Build command to start a worker process."""
         ...
-

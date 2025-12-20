@@ -191,17 +191,19 @@ class SGLangBackendConfig:
         # Start with nsys prefix if provided
         cmd: list[str] = list(nsys_prefix) if nsys_prefix else []
 
-        cmd.extend([
-            "python3",
-            "-m",
-            python_module,
-            "--model-path",
-            str(runtime.model_path),
-            "--served-model-name",
-            served_model_name,
-            "--host",
-            "0.0.0.0",
-        ])
+        cmd.extend(
+            [
+                "python3",
+                "-m",
+                python_module,
+                "--model-path",
+                str(runtime.model_path),
+                "--served-model-name",
+                served_model_name,
+                "--host",
+                "0.0.0.0",
+            ]
+        )
 
         # Add disaggregation mode flag (not for agg mode, not when using sglang router)
         if mode != "agg" and not use_sglang_router:
@@ -245,4 +247,3 @@ def _config_to_cli_args(config: dict[str, Any]) -> list[str]:
         elif value is not None:
             args.extend([f"--{flag_name}", str(value)])
     return args
-

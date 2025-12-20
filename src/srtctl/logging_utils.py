@@ -169,4 +169,3 @@ def waiting(message: str, logger: logging.Logger | None = None) -> None:
     if logger is None:
         logger = logging.getLogger()
     logger.info("%s %s", HOURGLASS, message)
-

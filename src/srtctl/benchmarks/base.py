@@ -89,9 +89,7 @@ def get_runner(benchmark_type: str) -> BenchmarkRunner:
     """
     if benchmark_type not in _BENCHMARK_RUNNERS:
         available = ", ".join(sorted(_BENCHMARK_RUNNERS.keys()))
-        raise ValueError(
-            f"Unknown benchmark type: {benchmark_type}. Available: {available}"
-        )
+        raise ValueError(f"Unknown benchmark type: {benchmark_type}. Available: {available}")
     return _BENCHMARK_RUNNERS[benchmark_type]()
 
 

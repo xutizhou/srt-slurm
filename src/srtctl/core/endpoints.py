@@ -169,10 +169,7 @@ def allocate_endpoints(
         worker_nodes = []
         for _ in range(nodes_per_worker):
             if node_idx >= len(available_nodes):
-                raise ValueError(
-                    f"Not enough nodes: need node {node_idx}, "
-                    f"but only {len(available_nodes)} available"
-                )
+                raise ValueError(f"Not enough nodes: need node {node_idx}, but only {len(available_nodes)} available")
             worker_nodes.append(available_nodes[node_idx])
             node_idx += 1
 
@@ -222,9 +219,7 @@ def allocate_endpoints(
     gpu_offset = 0
 
     # Simpler allocation: each worker gets nodes sequentially
-    def allocate_workers_simple(
-        mode: WorkerMode, count: int, gpus_per_worker: int
-    ) -> list[Endpoint]:
+    def allocate_workers_simple(mode: WorkerMode, count: int, gpus_per_worker: int) -> list[Endpoint]:
         nonlocal node_idx, gpu_offset
         result = []
 
@@ -233,9 +228,7 @@ def allocate_endpoints(
         for i in range(count):
             if nodes_per_worker >= 1 and gpus_per_worker >= gpus_per_node:
                 # Multi-node or full-node worker
-                worker_nodes = tuple(
-                    available_nodes[node_idx + j] for j in range(nodes_per_worker)
-                )
+                worker_nodes = tuple(available_nodes[node_idx + j] for j in range(nodes_per_worker))
                 node_idx += nodes_per_worker
 
                 result.append(
@@ -320,4 +313,3 @@ def endpoints_to_processes(
             current_port += 1
 
     return processes
-
