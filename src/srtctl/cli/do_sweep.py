@@ -398,7 +398,22 @@ class SweepOrchestrator:
 
         logger.info("Server is healthy")
 
-        if self.config.benchmark.type == "manual":
+        # Auto-select profiling benchmark when profiling is enabled
+        benchmark_type = self.config.benchmark.type
+        if self.config.profiling.enabled:
+            if benchmark_type != "profiling":
+                logger.info(
+                    "Profiling enabled (type=%s) - automatically using 'profiling' benchmark",
+                    self.config.profiling.type,
+                )
+                logger.info("Profiling config: isl=%s, osl=%s, concurrency=%s",
+                    self.config.profiling.isl,
+                    self.config.profiling.osl,
+                    self.config.profiling.concurrency,
+                )
+            benchmark_type = "profiling"
+
+        if benchmark_type == "manual":
             logger.info("Benchmark type is 'manual' - server is ready for testing")
             logger.info("Frontend URL: http://%s:8000", self.runtime.nodes.head)
             logger.info("Press Ctrl+C to stop the job")
@@ -414,7 +429,7 @@ class SweepOrchestrator:
         from srtctl.benchmarks import get_runner
 
         try:
-            runner = get_runner(self.config.benchmark.type)
+            runner = get_runner(benchmark_type)
         except ValueError as e:
             logger.error("%s", e)
             return 1
@@ -448,6 +463,7 @@ class SweepOrchestrator:
         """Run the actual benchmark script."""
 
         cmd = runner.build_command(self.config, self.runtime)
+        env_to_set = self._get_benchmark_profiling_env(runner)
 
         logger.info("Script: %s", runner.script_path)
         logger.info("Command: %s", shlex.join(cmd))
@@ -459,6 +475,7 @@ class SweepOrchestrator:
             output=str(log_file),
             container_image=str(self.runtime.container_image),
             container_mounts=self.runtime.container_mounts,
+            env_to_set=env_to_set,
         )
 
         # Wait for benchmark to complete
@@ -470,6 +487,73 @@ class SweepOrchestrator:
             time.sleep(1)
 
         return proc.returncode or 0
+
+    def _get_benchmark_profiling_env(self, runner: "BenchmarkRunner") -> dict[str, str]:
+        """Get environment variables for the benchmark script."""
+        env: dict[str, str] = {}
+
+        # Add profiling-specific env vars
+        if runner.name == "Profiling" and self.config.profiling.enabled:
+            p = self.config.profiling
+
+            # Traffic generator params
+            if p.isl is not None:
+                env["PROFILE_ISL"] = str(p.isl)
+            if p.osl is not None:
+                env["PROFILE_OSL"] = str(p.osl)
+            if p.concurrency is not None:
+                env["PROFILE_CONCURRENCY"] = str(p.concurrency)
+
+            # Model name
+            env["PROFILE_MODEL_NAME"] = self.config.served_model_name
+
+            # Head node for traffic
+            env["HEAD_NODE"] = self.runtime.nodes.head
+            env["HEAD_PORT"] = str(self.runtime.frontend_port)
+
+            # Collect worker leader IPs by mode
+            prefill_ips = []
+            decode_ips = []
+            agg_ips = []
+
+            for endpoint in self.endpoints:
+                leader_ip = get_hostname_ip(endpoint.leader_node)
+                if endpoint.mode == "prefill":
+                    prefill_ips.append(leader_ip)
+                elif endpoint.mode == "decode":
+                    decode_ips.append(leader_ip)
+                elif endpoint.mode == "agg":
+                    agg_ips.append(leader_ip)
+
+            if prefill_ips:
+                env["PROFILE_PREFILL_IPS"] = ",".join(prefill_ips)
+            if decode_ips:
+                env["PROFILE_DECODE_IPS"] = ",".join(decode_ips)
+            if agg_ips:
+                env["PROFILE_AGG_IPS"] = ",".join(agg_ips)
+
+            # Phase-specific step configs
+            if p.prefill:
+                if p.prefill.start_step is not None:
+                    env["PROFILE_PREFILL_START_STEP"] = str(p.prefill.start_step)
+                if p.prefill.stop_step is not None:
+                    env["PROFILE_PREFILL_STOP_STEP"] = str(p.prefill.stop_step)
+            if p.decode:
+                if p.decode.start_step is not None:
+                    env["PROFILE_DECODE_START_STEP"] = str(p.decode.start_step)
+                if p.decode.stop_step is not None:
+                    env["PROFILE_DECODE_STOP_STEP"] = str(p.decode.stop_step)
+            if p.aggregated:
+                if p.aggregated.start_step is not None:
+                    env["PROFILE_AGG_START_STEP"] = str(p.aggregated.start_step)
+                if p.aggregated.stop_step is not None:
+                    env["PROFILE_AGG_STOP_STEP"] = str(p.aggregated.stop_step)
+
+            # Torch profiler directory
+            if p.is_torch:
+                env["SGLANG_TORCH_PROFILER_DIR"] = str(self.runtime.log_dir / "profiles")
+
+        return env
 
     def run(self) -> int:
         """Run the complete sweep."""

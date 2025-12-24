@@ -95,69 +95,6 @@ class TestSGLangProtocol:
         assert config.get_environment_for_mode("agg") == {}
 
 
-class TestProfilingConfig:
-    """Tests for ProfilingConfig."""
-
-    def test_profiling_defaults(self):
-        """Test profiling config defaults."""
-        from srtctl.core.schema import ProfilingConfig
-
-        profiling = ProfilingConfig()
-
-        assert profiling.enabled is False
-        assert profiling.is_nsys is False
-        assert profiling.is_torch is False
-        assert profiling.type == "none"
-
-    def test_nsys_profiling(self):
-        """Test nsys profiling configuration."""
-        from srtctl.core.schema import ProfilingConfig
-
-        profiling = ProfilingConfig(
-            type="nsys",
-            isl=1024,
-            osl=512,
-            concurrency=32,
-        )
-
-        assert profiling.enabled is True
-        assert profiling.is_nsys is True
-        assert profiling.is_torch is False
-
-        # Test nsys prefix generation
-        prefix = profiling.get_nsys_prefix("/output/test")
-        assert "nsys" in prefix
-        assert "profile" in prefix
-        assert "/output/test" in prefix
-
-    def test_torch_profiling(self):
-        """Test torch profiling configuration."""
-        from srtctl.core.schema import ProfilingConfig
-
-        profiling = ProfilingConfig(
-            type="torch",
-            isl=2048,
-            osl=1024,
-            concurrency=64,
-            start_step=5,
-            stop_step=15,
-        )
-
-        assert profiling.enabled is True
-        assert profiling.is_torch is True
-        assert profiling.is_nsys is False
-
-        # Test env vars generation
-        env = profiling.get_env_vars("prefill", "/logs/profiles")
-        assert env["PROFILING_MODE"] == "prefill"
-        assert env["PROFILE_ISL"] == "2048"
-        assert env["PROFILE_OSL"] == "1024"
-        assert env["PROFILE_CONCURRENCY"] == "64"
-        assert env["PROFILE_START_STEP"] == "5"
-        assert env["PROFILE_STOP_STEP"] == "15"
-        assert env["SGLANG_TORCH_PROFILER_DIR"] == "/logs/profiles/prefill"
-
-
 class TestFrontendConfig:
     """Tests for FrontendConfig."""
 

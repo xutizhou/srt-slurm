@@ -351,6 +351,16 @@ class BenchmarkConfig:
 
 
 @dataclass(frozen=True)
+class ProfilingPhaseConfig:
+    """Profiling config for a single phase (prefill/decode/aggregated)."""
+
+    start_step: int | None = None  # Step to start profiling
+    stop_step: int | None = None  # Step to stop profiling
+
+    Schema: ClassVar[builtins.type[Schema]] = Schema
+
+
+@dataclass(frozen=True)
 class ProfilingConfig:
     """Profiling configuration.
 
@@ -359,14 +369,21 @@ class ProfilingConfig:
     - torch: PyTorch profiler (uses SGLANG_TORCH_PROFILER_DIR)
 
     When profiling is enabled, workers use sglang.launch_server instead of dynamo.sglang.
+
+    Traffic generator parameters (isl, osl, concurrency) are specified at the top level
+    and used for all phases. Per-phase start_step/stop_step are specified in the
+    prefill/decode/aggregated sections.
     """
 
     type: str = "none"  # "none", "nsys", or "torch"
     isl: int | None = None  # Input sequence length for profiling workload
     osl: int | None = None  # Output sequence length for profiling workload
     concurrency: int | None = None  # Batch size / concurrency
-    start_step: int | None = None  # Step to start profiling (default: 0)
-    stop_step: int | None = None  # Step to stop profiling (default: 50)
+
+    # Phase-specific profiling step configs
+    prefill: ProfilingPhaseConfig | None = None
+    decode: ProfilingPhaseConfig | None = None
+    aggregated: ProfilingPhaseConfig | None = None
 
     @property
     def enabled(self) -> bool:
@@ -382,6 +399,16 @@ class ProfilingConfig:
     def is_torch(self) -> bool:
         """Check if using PyTorch profiler."""
         return self.type == "torch"
+
+    def _get_phase_config(self, mode: str) -> ProfilingPhaseConfig | None:
+        """Get the phase config for the given mode."""
+        if mode == "prefill":
+            return self.prefill
+        elif mode == "decode":
+            return self.decode
+        elif mode in ("agg", "aggregated"):
+            return self.aggregated
+        return None
 
     def get_env_vars(self, mode: str, profile_dir: str) -> dict[str, str]:
         """Get profiling-specific environment variables.
@@ -400,16 +427,22 @@ class ProfilingConfig:
             "PROFILING_MODE": mode,
         }
 
+        # Traffic generator params (same for all phases)
         if self.isl is not None:
             env["PROFILE_ISL"] = str(self.isl)
         if self.osl is not None:
             env["PROFILE_OSL"] = str(self.osl)
         if self.concurrency is not None:
             env["PROFILE_CONCURRENCY"] = str(self.concurrency)
-        if self.start_step is not None:
-            env["PROFILE_START_STEP"] = str(self.start_step)
-        if self.stop_step is not None:
-            env["PROFILE_STOP_STEP"] = str(self.stop_step)
+
+        # Phase-specific start/stop steps
+        phase_config = self._get_phase_config(mode)
+        if phase_config:
+            phase_key = mode.upper() if mode != "agg" else "AGG"
+            if phase_config.start_step is not None:
+                env[f"PROFILE_{phase_key}_START_STEP"] = str(phase_config.start_step)
+            if phase_config.stop_step is not None:
+                env[f"PROFILE_{phase_key}_STOP_STEP"] = str(phase_config.stop_step)
 
         if self.is_torch:
             env["SGLANG_TORCH_PROFILER_DIR"] = f"{profile_dir}/{mode}"
@@ -535,6 +568,64 @@ class SrtConfig:
     setup_script: str | None = None
 
     Schema: ClassVar[type[Schema]] = Schema
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        self._validate_profiling()
+
+    def _validate_profiling(self):
+        """Validate profiling configuration matches serving mode."""
+        prof = self.profiling
+        if not prof.enabled:
+            return
+
+        # Traffic generator params are required when profiling is enabled
+        if prof.isl is None or prof.osl is None or prof.concurrency is None:
+            raise ValidationError(
+                "profiling.isl/osl/concurrency must be set when profiling is enabled. "
+                f"Got isl={prof.isl}, osl={prof.osl}, concurrency={prof.concurrency}"
+            )
+
+        r = self.resources
+        is_disaggregated = r.is_disaggregated
+        has_prefill_prof = prof.prefill is not None
+        has_decode_prof = prof.decode is not None
+        has_agg_prof = prof.aggregated is not None
+
+        # Validate phase configs match serving mode
+        if is_disaggregated:
+            if has_agg_prof:
+                raise ValidationError(
+                    "Disaggregated mode only supports profiling.prefill/decode; profiling.aggregated is not allowed."
+                )
+            if not has_prefill_prof or not has_decode_prof:
+                raise ValidationError(
+                    "Disaggregated mode requires both profiling.prefill and profiling.decode "
+                    "to be set when profiling is enabled."
+                )
+        else:
+            if has_prefill_prof or has_decode_prof:
+                raise ValidationError(
+                    "Aggregated mode only supports profiling.aggregated; profiling.prefill/decode are not allowed."
+                )
+            if not has_agg_prof:
+                raise ValidationError(
+                    "Aggregated mode requires profiling.aggregated to be set when profiling is enabled."
+                )
+
+        # Profiling requires single worker per role
+        if is_disaggregated:
+            if r.num_prefill != 1 or r.num_decode != 1:
+                raise ValidationError(
+                    f"Profiling mode requires exactly 1 prefill and 1 decode worker. "
+                    f"Got prefill_workers={r.num_prefill}, decode_workers={r.num_decode}"
+                )
+        else:
+            if r.num_agg != 1:
+                raise ValidationError(
+                    f"Profiling mode requires exactly 1 aggregated worker. "
+                    f"Got agg_workers={r.num_agg}"
+                )
 
     @classmethod
     def from_yaml(cls, yaml_path: Path) -> "SrtConfig":

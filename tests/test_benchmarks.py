@@ -20,6 +20,7 @@ class TestBenchmarkRegistry:
         assert "gpqa" in benchmarks
         assert "longbenchv2" in benchmarks
         assert "router" in benchmarks
+        assert "profiling" in benchmarks
 
     def test_get_runner_valid(self):
         """Can get runner for valid benchmark type."""

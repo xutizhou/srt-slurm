@@ -76,6 +76,17 @@ Tests benchmark runner implementations:
 - Script path resolution
 - Config validation
 
+### `test_profiling.py` - Profiling
+
+Tests profiling configuration, validation, and benchmark runner:
+
+- `ProfilingConfig` and `ProfilingPhaseConfig` dataclasses
+- Per-phase start_step/stop_step environment variables
+- Validation: requires 1P+1D (disagg) or 1 agg worker
+- Validation: phase configs must match serving mode
+- Auto-switch to profiling benchmark when `profiling.enabled`
+- Profiling runner and script
+
 ### `test_process_registry.py` - Process Management
 
 Tests ProcessRegistry lifecycle management:
