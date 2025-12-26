@@ -555,6 +555,9 @@ class SweepOrchestrator:
             if p.is_torch:
                 env["SGLANG_TORCH_PROFILER_DIR"] = str(self.runtime.log_dir / "profiles")
 
+            # The profile.sh script only generates traffic when PROFILING_MODE=prefill
+            env["PROFILING_MODE"] = "prefill"
+
         return env
 
     def run(self) -> int:
