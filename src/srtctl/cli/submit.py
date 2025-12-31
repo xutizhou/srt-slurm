@@ -216,7 +216,7 @@ def submit_with_orchestrator(
             json.dump(metadata, f, indent=2)
 
         console.print(f"[bold green]✅ Job {job_id} submitted![/]")
-        console.print(f"[dim]📁 Output:[/] {output_dir}")
+        console.print(f"[dim]📁 Logs:[/] {output_dir}/logs")
         console.print(f"[dim]📋 Monitor:[/] tail -f {output_dir}/logs/sweep_{job_id}.log")
 
     except subprocess.CalledProcessError as e:
