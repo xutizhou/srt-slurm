@@ -1,0 +1,50 @@
+# OPT-125M Single GPU Test Config
+# Minimal configuration for quick iteration and testing
+# Model: facebook/opt-125m (~250MB, loads in seconds)
+
+name: "opt-125m-vllm-test"
+
+slurm:
+  time_limit: "00:30:00"  # 30 minutes
+
+model:
+  # Use hf: prefix to download from HuggingFace at runtime
+  path: "hf:facebook/opt-125m"
+  container: "/lustre/fsw/coreai_ai-foundation-models_dev/aflowers/containers/nvidia+ai-dynamo+vllm-runtime+0.8.0.sqsh"
+  precision: "fp16"
+
+resources:
+  gpu_type: "h100"
+  gpus_per_node: 8
+  # Single aggregated worker on 1 GPU
+  agg_nodes: 1
+  agg_workers: 1
+  gpus_per_agg: 1
+
+frontend:
+  type: dynamo
+  enable_multiple_frontends: false
+  args:
+    router-reset-states: true
+
+backend:
+  type: vllm
+  connector: nixl
+
+  aggregated_environment:
+    DYN_HEALTH_CHECK_ENABLED: "false"
+    PYTHONUNBUFFERED: "1"
+
+  vllm_config:
+    aggregated:
+      served-model-name: "facebook/opt-125m"
+      tensor-parallel-size: 1
+      gpu-memory-utilization: 0.90
+      disable-log-requests: true
+      max-model-len: 2048
+
+benchmark:
+  type: "mooncake-router"
+  mooncake_workload: "conversation"
+  ttft_threshold_ms: 500
+  itl_threshold_ms: 50
