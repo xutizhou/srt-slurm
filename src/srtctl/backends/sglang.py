@@ -117,6 +117,14 @@ class SGLangProtocol:
             return dict(self.aggregated_environment)
         return {}
 
+    def get_process_environment(self, process: "Process") -> dict[str, str]:
+        """Get process-specific environment variables.
+
+        SGLang handles kv-events via CLI args (--kv-events-config), so no
+        additional process-specific env vars are needed here.
+        """
+        return {}
+
     def is_grpc_mode(self, mode: WorkerMode) -> bool:
         """Check if gRPC mode is enabled for a worker mode."""
         config = self.get_config_for_mode(mode)

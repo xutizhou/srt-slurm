@@ -100,6 +100,13 @@ class TRTLLMProtocol:
             raise ValueError("Aggregated mode is not supported for TRTLLM")
         return {}
 
+    def get_process_environment(self, process: "Process") -> dict[str, str]:
+        """Get process-specific environment variables.
+
+        TRTLLM doesn't currently require process-specific env vars.
+        """
+        return {}
+
     def allocate_endpoints(
         self,
         num_prefill: int,

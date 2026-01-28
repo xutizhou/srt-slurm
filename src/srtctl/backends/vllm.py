@@ -121,6 +121,20 @@ class VLLMProtocol:
             return dict(self.aggregated_environment)
         return {}
 
+    def get_process_environment(self, process: "Process") -> dict[str, str]:
+        """Get process-specific environment variables for vLLM workers.
+
+        vLLM with dynamo requires unique ports for each worker:
+        - DYN_VLLM_KV_EVENT_PORT: ZMQ port for KV events publishing
+        - VLLM_NIXL_SIDE_CHANNEL_PORT: Port for NIXL side channel transfers
+        """
+        env: dict[str, str] = {}
+        if process.kv_events_port is not None:
+            env["DYN_VLLM_KV_EVENT_PORT"] = str(process.kv_events_port)
+        if process.nixl_port is not None:
+            env["VLLM_NIXL_SIDE_CHANNEL_PORT"] = str(process.nixl_port)
+        return env
+
     def allocate_endpoints(
         self,
         num_prefill: int,
@@ -195,6 +209,7 @@ class VLLMProtocol:
                         port_allocator.next_bootstrap_port(node) if endpoint.mode == "prefill" and is_leader else None
                     )
                     kv_events_port = port_allocator.next_kv_events_port()
+                    nixl_port = port_allocator.next_nixl_port()
 
                     processes.append(
                         Process(
@@ -207,6 +222,7 @@ class VLLMProtocol:
                             node_rank=node_rank,
                             bootstrap_port=bootstrap_port,
                             kv_events_port=kv_events_port,
+                            nixl_port=nixl_port,
                         )
                     )
                     current_sys_port += 1
@@ -224,6 +240,7 @@ class VLLMProtocol:
                             else None
                         )
                         kv_events_port = port_allocator.next_kv_events_port()
+                        nixl_port = port_allocator.next_nixl_port()
 
                         processes.append(
                             Process(
@@ -236,6 +253,7 @@ class VLLMProtocol:
                                 node_rank=dp_rank,  # dp_rank stored in node_rank for now
                                 bootstrap_port=bootstrap_port,
                                 kv_events_port=kv_events_port,
+                                nixl_port=nixl_port,
                             )
                         )
                         current_sys_port += 1
