@@ -38,15 +38,15 @@ backend:
 
       # Other flags
       stream-interval: 10
-      max-running-requests: 512  # sum of all dp
+      max-running-requests: 128  # sum of all dp
 
       # Memory and token limits
-      mem-fraction-static: 0.82
+      mem-fraction-static: 0.75
       max-prefill-tokens: 32768
       chunked-prefill-size: 32768
 
       # CUDA graphs
-      cuda-graph-max-bs: 512
+      cuda-graph-max-bs: 128
 
       # MTP settings
       speculative-algorithm: "EAGLE"

@@ -89,9 +89,9 @@ backend:
       disaggregation-transfer-backend: nixl
 
       # Memory and token limits
-      mem-fraction-static: 0.88
-      max-running-requests: 256
-      cuda-graph-max-bs: 256
+      mem-fraction-static: 0.80
+      max-running-requests: 32
+      cuda-graph-max-bs: 32
 
       # MTP settings
       speculative-algorithm: "EAGLE"
