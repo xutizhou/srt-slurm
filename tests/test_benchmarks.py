@@ -106,6 +106,7 @@ class TestMooncakeRouterRunner:
 
         runtime = MagicMock()
         runtime.frontend_port = 8000
+        runtime.is_hf_model = False  # Local model mounted at /model
 
         cmd = runner.build_command(config, runtime)
 

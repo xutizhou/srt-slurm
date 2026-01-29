@@ -44,7 +44,7 @@ backend:
       max-model-len: 4096
 
 benchmark:
-  type: "mooncake-router"
-  mooncake_workload: "conversation"
-  ttft_threshold_ms: 500
-  itl_threshold_ms: 50
+  type: "sa-bench"
+  isl: 1024
+  osl: 1024
+  concurrencies: "1x5x10"
