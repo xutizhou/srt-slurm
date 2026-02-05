@@ -1,9 +1,12 @@
 name: "bs16-1p3d-h200-fp8"
 
 model:
-  path: "dsfp8"
-  container: "lmsysorg/sglang:v0.5.8-cu130-runtime"
+  path: "dsr1"
+  container: "lmsysorg/sglang:v0.5.8-cu130"
   precision: "fp8"
+
+frontend:
+  nginx_container: nginx
 
 resources:
   gpu_type: "h200"
@@ -15,13 +18,17 @@ resources:
 
 backend:
 
-  # Prefill-specific environment variables
   prefill_environment:
-    SGLANG_DG_CACHE_DIR: "/configs/dg-10212025"
+    SGLANG_JIT_DEEPGEMM_FAST_WARMUP: "1"
+    SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
+    SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT: "100000"
+    SGLANG_DISAGGREGATION_WAITING_TIMEOUT: "100000"
 
-  # Decode-specific environment variables
   decode_environment:
-    SGLANG_DG_CACHE_DIR: "/configs/dg-10212025"
+    SGLANG_JIT_DEEPGEMM_FAST_WARMUP: "1"
+    SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
+    SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT: "100000"
+    SGLANG_DISAGGREGATION_WAITING_TIMEOUT: "100000"
 
   sglang_config:
     prefill:
@@ -44,6 +51,7 @@ backend:
 
       # Other flags
       # stream-interval: 50
+      watchdog-timeout: 1000000
       max-running-requests: 16
       
 
@@ -78,6 +86,7 @@ backend:
       # Other flags
       disable-radix-cache: true
       stream-interval: 10
+      watchdog-timeout: 1000000
 
       # Disagg
       disaggregation-bootstrap-port: 30001

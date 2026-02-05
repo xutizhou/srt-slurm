@@ -110,6 +110,9 @@ class SweepOrchestrator(WorkerStageMixin, FrontendStageMixin, BenchmarkStageMixi
 
         mounts = dict(self.runtime.container_mounts)
         mounts[setup_script] = setup_script_container
+        # Mount host /tmp to container /host-tmp for etcd/nats data on local storage
+        # This ensures etcd WAL writes go to fast local disk, not network storage
+        mounts[Path("/tmp")] = Path("/host-tmp")
 
         proc = start_srun_process(
             command=cmd,
@@ -127,13 +130,14 @@ class SweepOrchestrator(WorkerStageMixin, FrontendStageMixin, BenchmarkStageMixi
             critical=True,
         )
 
+        # 300s timeout to handle slow container imports on first run
         logger.info("Waiting for NATS (port 4222) on %s...", infra_node)
-        if not wait_for_port(infra_node, 4222, timeout=60):
+        if not wait_for_port(infra_node, 4222, timeout=300):
             raise RuntimeError("NATS failed to start")
         logger.info("NATS is ready")
 
         logger.info("Waiting for etcd (port 2379) on %s...", infra_node)
-        if not wait_for_port(infra_node, 2379, timeout=60):
+        if not wait_for_port(infra_node, 2379, timeout=300):
             raise RuntimeError("etcd failed to start")
         logger.info("etcd is ready")
 

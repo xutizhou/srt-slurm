@@ -1,14 +1,17 @@
-# GB200 FP8 Mid curve Configuration
+# GB300 FP8 Mid Throughput Configuration
 
-name: "gb200-8k1k-fp8-mid-tpt"
+name: "gb300-8k1k-fp8-mid"
 
 model:
   path: "dsfp8"
-  container: "0.5.5.post2"
+  container: "lmsysorg/sglang:v0.5.8-cu130"
   precision: "fp8"
 
+frontend:
+  nginx_container: nginx
+
 resources:
-  gpu_type: "gb200"
+  gpu_type: "gb300"
   prefill_nodes: 10 
   prefill_workers: 5
   decode_nodes: 8 
@@ -33,13 +36,15 @@ backend:
     SGLANG_USE_MESSAGE_QUEUE_BROADCASTER: "0"
     SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK: "1"
     PYTHONUNBUFFERED: "1"
+    SGLANG_ENABLE_SPEC_V2: "1"
+    SGLANG_NCCL_ALL_GATHER_IN_OVERLAP_SCHEDULER_SYNC_BATCH: "1"
 
   # Decode-specific environment variables
   decode_environment:
     TORCH_DISTRIBUTED_DEFAULT_TIMEOUT: "1800"
     SGLANG_DG_CACHE_DIR: "/configs/dg-10212025"
     DYN_SKIP_SGLANG_LOG_FORMATTING: "1"
-    SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK: "256"
+    SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK: "768"
     MC_TE_METRIC: "true"
     SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
     SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT: "100000"
@@ -53,6 +58,8 @@ backend:
     SGLANG_USE_MESSAGE_QUEUE_BROADCASTER: "0"
     SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK: "1"
     PYTHONUNBUFFERED: "1"
+    SGLANG_ENABLE_SPEC_V2: "1"
+    SGLANG_NCCL_ALL_GATHER_IN_OVERLAP_SCHEDULER_SYNC_BATCH: "1"
 
   sglang_config:
     prefill:
@@ -77,17 +84,18 @@ backend:
       # Other flags
       stream-interval: 50
       max-running-requests: 30000
-      context-length: 9300
+      context-length: 9300 
       watchdog-timeout: 1000000
       disable-shared-experts-fusion: true
       eplb-algorithm: "deepseek"
       disaggregation-bootstrap-port: 30001
-
+      disaggregation-transfer-backend: nixl
+      
       # Prefill-specific mode
       disaggregation-mode: "prefill"
-
+      
       # Memory and token limits
-      mem-fraction-static: 0.80
+      mem-fraction-static: 0.75
       max-total-tokens: 524288
       chunked-prefill-size: 131072
 
@@ -106,16 +114,23 @@ backend:
       ep-num-redundant-experts: 32
       deepep-config: "/configs/deepep_config.json"
 
+      # MTP
+      speculative-algorithm: "EAGLE"
+      speculative-num-steps: 1
+      speculative-eagle-topk: 1
+      speculative-num-draft-tokens: 2
+
     decode:
       # Model configuration
       served-model-name: "deepseek-ai/DeepSeek-R1"
       skip-tokenizer-init: true
       trust-remote-code: true
+      disaggregation-transfer-backend: nixl
 
       # Parallelism
-      tp-size: 32
-      dp-size: 32
-      ep-size: 32
+      tp-size: 32 
+      dp-size: 32 
+      ep-size: 32 
       enable-dp-attention: true
 
       # KV cache and attention
@@ -128,8 +143,9 @@ backend:
       # Other flags
       stream-interval: 50
       decode-log-interval: 1000
-      max-running-requests: 8192 
-      context-length: 9300 
+      max-running-requests: 45000
+      context-length: 9300
+
       watchdog-timeout: 1000000
       disable-shared-experts-fusion: true
       eplb-algorithm: "deepseek"
@@ -139,7 +155,7 @@ backend:
       disaggregation-mode: "decode"
 
       # Memory and token limits
-      mem-fraction-static: 0.82
+      mem-fraction-static: 0.75
       chunked-prefill-size: 36864
 
       # DeepEP configuration
@@ -151,12 +167,21 @@ backend:
       prefill-round-robin-balance: true
       ep-num-redundant-experts: 32
       deepep-config: "/configs/deepep_config.json"
+
       # CUDA graphs
-      cuda-graph-max-bs: 256 
+      cuda-graph-bs: [1, 2, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248, 256, 264, 272, 280, 288, 296, 304, 312, 320, 328, 336, 344, 352, 360, 368, 376, 384]
+      cuda-graph-max-bs: 384
+
+      # MTP
+      speculative-algorithm: "EAGLE"
+      speculative-num-steps: 1
+      speculative-eagle-topk: 1
+      speculative-num-draft-tokens: 2
 
 benchmark:
   type: "sa-bench"
   isl: 8192 
   osl: 1024
-  concurrencies: "512x1024x2048x6144"
-  req_rate: "300"
+  concurrencies: [128,256,512,1024,2048,4096]
+  req_rate: "inf"
+
