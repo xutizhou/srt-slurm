@@ -38,6 +38,7 @@ backend:
       model-path: "/model/"
       skip-tokenizer-init: true
       trust-remote-code: true
+      watchdog-timeout: 1000000
 
       # Parallelism
       tp-size: 8
@@ -74,6 +75,7 @@ backend:
       model-path: "/model/"
       skip-tokenizer-init: true
       trust-remote-code: true
+      watchdog-timeout: 1000000
 
       # Parallelism
       tp-size: 8
